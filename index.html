@@ -42,6 +42,11 @@
                 <label for="job-description">Target Job Description</label>
                 <textarea id="job-description" rows="6" placeholder="Paste the job description you're applying for..."></textarea>
 
+                <div class="selection-header">
+                    <button class="btn" id="auto-select-btn">Auto-select relevant</button>
+                    <span id="auto-select-status" class="auto-select-status"></span>
+                </div>
+
                 <div class="selection-columns">
                     <div class="selection-col">
                         <h3>Select Experience</h3>
@@ -53,15 +58,13 @@
                     </div>
                 </div>
 
+                <div id="auto-select-reasoning" class="reasoning-box hidden"></div>
+
                 <button class="btn btn-primary btn-generate" id="generate-btn">Generate</button>
             </div>
 
             <div id="generate-results" class="results hidden">
                 <div id="results-content"></div>
-            </div>
-            <div id="generate-loading" class="loading hidden">
-                <div class="spinner"></div>
-                <p>Generating tailored descriptions... This may take a minute.</p>
             </div>
         </section>
     </div>

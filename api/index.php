@@ -38,6 +38,10 @@ $router->register('POST', 'projects', [ProjectController::class, 'store']);
 $router->register('PUT', 'projects', [ProjectController::class, 'update']);
 $router->register('DELETE', 'projects', [ProjectController::class, 'destroy']);
 
-$router->register('POST', 'generate', [GenerateController::class, 'generate']);
+$router->register('POST', 'generate/analyze', [GenerateController::class, 'analyzeJob']);
+$router->register('POST', 'generate/score', [GenerateController::class, 'scoreItems']);
+$router->register('POST', 'generate/bullets', [GenerateController::class, 'generateBullets']);
+$router->register('POST', 'generate/summary', [GenerateController::class, 'generateSummary']);
+$router->register('POST', 'auto-select', [GenerateController::class, 'autoSelect']);
 
 $router->dispatch($method, $route);

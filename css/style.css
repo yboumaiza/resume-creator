@@ -405,7 +405,252 @@ header h1 {
     font-size: 1rem;
 }
 
-/* Results */
+/* Auto-select */
+.selection-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    margin-bottom: 4px;
+}
+
+.auto-select-status {
+    font-size: 0.825rem;
+    color: var(--text-muted);
+}
+
+.auto-select-status.loading-text {
+    color: var(--primary);
+}
+
+.auto-select-status.error-text {
+    color: var(--danger);
+}
+
+.reasoning-box {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 16px;
+    font-size: 0.825rem;
+    line-height: 1.6;
+    color: #92400e;
+    white-space: pre-line;
+}
+
+.reasoning-box.hidden {
+    display: none;
+}
+
+/* Pipeline steps */
+.pipeline-step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+    transition: border-color 0.3s;
+}
+
+.pipeline-step.loading {
+    border-left-color: var(--primary);
+}
+
+.pipeline-step.complete {
+    border-left-color: #16a34a;
+}
+
+.pipeline-step.error {
+    border-left-color: var(--danger);
+}
+
+.pipeline-step-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pipeline-step-header h4 {
+    font-size: 0.95rem;
+    flex: 1;
+}
+
+.spinner-sm {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+
+.step-check {
+    color: #16a34a;
+    font-size: 1.1rem;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.step-status-text {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.pipeline-step-body {
+    margin-top: 12px;
+    font-size: 0.875rem;
+}
+
+.pipeline-step-body:empty {
+    display: none;
+}
+
+/* Job analysis display */
+.analysis-group {
+    margin-bottom: 10px;
+}
+
+.analysis-group h5 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.analysis-group ul {
+    padding-left: 18px;
+    font-size: 0.85rem;
+}
+
+.analysis-group li {
+    margin-bottom: 2px;
+}
+
+/* Relevance badge */
+.relevance-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #dcfce7;
+    color: #166534;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+/* Seniority badge */
+.seniority-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Nice-to-have tag */
+.tag-nice {
+    background: #f1f5f9;
+    color: var(--text-muted);
+}
+
+/* Ranked items list */
+.ranked-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.875rem;
+}
+
+.ranked-item:last-child {
+    border-bottom: none;
+}
+
+.rank-number {
+    width: 24px;
+    height: 24px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.ranked-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.ranked-item-title {
+    font-weight: 500;
+}
+
+.ranked-item-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Result skill tags */
+.result-skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+/* Bullet item card inside Step 3 */
+.bullet-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-top: 10px;
+}
+
+.bullet-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.bullet-card-header h5 {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.bullet-card ul {
+    padding-left: 20px;
+}
+
+.bullet-card li {
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+    line-height: 1.5;
+}
+
+/* Summary section */
+.summary-text {
+    font-size: 0.9rem;
+    line-height: 1.7;
+}
+
+/* Results container */
 .results {
     margin-top: 24px;
 }
@@ -414,41 +659,7 @@ header h1 {
     display: none;
 }
 
-.result-section {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px;
-    margin-bottom: 16px;
-    box-shadow: var(--shadow);
-}
-
-.result-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.result-section h4 {
-    font-size: 0.95rem;
-}
-
-.result-section ul {
-    padding-left: 20px;
-}
-
-.result-section li {
-    font-size: 0.875rem;
-    margin-bottom: 4px;
-}
-
-.result-section p {
-    font-size: 0.875rem;
-    line-height: 1.7;
-}
-
-/* Loading */
+/* Legacy loading (kept for auto-select) */
 .loading {
     text-align: center;
     padding: 40px;

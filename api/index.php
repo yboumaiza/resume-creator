@@ -20,6 +20,7 @@ require_once $base . '/src/Router.php';
 require_once $base . '/src/Models/Experience.php';
 require_once $base . '/src/Models/Project.php';
 require_once $base . '/src/Services/OllamaService.php';
+require_once $base . '/src/Services/PromptBuilder.php';
 require_once $base . '/src/Controllers/ExperienceController.php';
 require_once $base . '/src/Controllers/ProjectController.php';
 require_once $base . '/src/Controllers/GenerateController.php';
@@ -38,10 +39,6 @@ $router->register('POST', 'projects', [ProjectController::class, 'store']);
 $router->register('PUT', 'projects', [ProjectController::class, 'update']);
 $router->register('DELETE', 'projects', [ProjectController::class, 'destroy']);
 
-$router->register('POST', 'generate/analyze', [GenerateController::class, 'analyzeJob']);
-$router->register('POST', 'generate/score', [GenerateController::class, 'scoreItems']);
-$router->register('POST', 'generate/bullets', [GenerateController::class, 'generateBullets']);
-$router->register('POST', 'generate/summary', [GenerateController::class, 'generateSummary']);
-$router->register('POST', 'auto-select', [GenerateController::class, 'autoSelect']);
+$router->register('POST', 'generate', [GenerateController::class, 'generate']);
 
 $router->dispatch($method, $route);

@@ -1,8 +1,5 @@
 (function () {
     const generateBtn = document.getElementById('generate-btn');
-    const autoSelectBtn = document.getElementById('auto-select-btn');
-    const autoSelectStatus = document.getElementById('auto-select-status');
-    const autoSelectReasoning = document.getElementById('auto-select-reasoning');
     const resultsDiv = document.getElementById('generate-results');
     const resultsContent = document.getElementById('results-content');
     const expCheckboxes = document.getElementById('experience-checkboxes');
@@ -11,7 +8,7 @@
     let experiences = [];
     let projects = [];
 
-    // ── Load checkboxes ──
+    // --- Checkbox loading ---
 
     window.loadGenerateCheckboxes = async function () {
         try {
@@ -48,194 +45,64 @@
         }
     };
 
-    // ── Auto-select (unchanged) ──
+    // --- Step UI helpers ---
 
-    autoSelectBtn.addEventListener('click', async () => {
-        const jobDescription = document.getElementById('job-description').value.trim();
-        if (!jobDescription) {
-            alert('Please paste a job description first.');
-            return;
-        }
-
-        if (!experiences.length && !projects.length) {
-            alert('Add some experiences or projects first.');
-            return;
-        }
-
-        autoSelectBtn.disabled = true;
-        autoSelectStatus.textContent = 'Analyzing...';
-        autoSelectStatus.className = 'auto-select-status loading-text';
-        autoSelectReasoning.classList.add('hidden');
-
-        try {
-            const result = await api('auto-select', 'POST', {
-                job_description: jobDescription,
-            });
-
-            expCheckboxes.querySelectorAll('input').forEach(cb => cb.checked = false);
-            projCheckboxes.querySelectorAll('input').forEach(cb => cb.checked = false);
-
-            const expIds = result.experience_ids || [];
-            const projIds = result.project_ids || [];
-
-            expIds.forEach(id => {
-                const cb = expCheckboxes.querySelector(`input[value="${id}"]`);
-                if (cb) cb.checked = true;
-            });
-
-            projIds.forEach(id => {
-                const cb = projCheckboxes.querySelector(`input[value="${id}"]`);
-                if (cb) cb.checked = true;
-            });
-
-            const total = expIds.length + projIds.length;
-            autoSelectStatus.textContent = total
-                ? `Selected ${total} relevant item${total > 1 ? 's' : ''}`
-                : 'Nothing relevant found';
-            autoSelectStatus.className = 'auto-select-status';
-
-            if (result.reasoning) {
-                autoSelectReasoning.textContent = result.reasoning;
-                autoSelectReasoning.classList.remove('hidden');
-            }
-        } catch (err) {
-            autoSelectStatus.textContent = 'Auto-select failed: ' + err.message;
-            autoSelectStatus.className = 'auto-select-status error-text';
-        } finally {
-            autoSelectBtn.disabled = false;
-        }
-    });
-
-    // ── Pipeline UI Helpers ──
-
-    function appendStep(title, status) {
-        const el = document.createElement('div');
-        el.className = `pipeline-step ${status}`;
-        el.innerHTML = `
-            <div class="pipeline-step-header">
-                ${status === 'loading' ? '<div class="spinner-sm"></div>' : '<span class="step-check">&#10003;</span>'}
-                <h4>${escapeHtml(title)}</h4>
+    function appendStep(label) {
+        const step = document.createElement('div');
+        step.className = 'pipeline-step';
+        step.innerHTML = `
+            <div class="step-header">
+                <div class="spinner-sm"></div>
+                <span class="step-label">${escapeHtml(label)}</span>
+                <span class="step-status-text">Running...</span>
             </div>
-            <div class="pipeline-step-body"></div>
+            <div class="step-body"></div>
         `;
-        resultsContent.appendChild(el);
-        return el;
+        step.querySelector('.step-header').addEventListener('click', () => {
+            step.querySelector('.step-body').classList.toggle('open');
+        });
+        resultsContent.appendChild(step);
+        return step;
     }
 
-    function completeStep(el, title) {
-        el.className = 'pipeline-step complete';
-        const header = el.querySelector('.pipeline-step-header');
-        header.innerHTML = `<span class="step-check">&#10003;</span><h4>${escapeHtml(title)}</h4>`;
+    function appendStepGroup(label) {
+        const group = document.createElement('div');
+        group.className = 'step-group-header';
+        group.innerHTML = `<span>${escapeHtml(label)}</span>`;
+        resultsContent.appendChild(group);
     }
 
-    function failStep(el, message) {
-        el.className = 'pipeline-step error';
-        const spinner = el.querySelector('.spinner-sm');
-        if (spinner) spinner.remove();
-        const body = el.querySelector('.pipeline-step-body');
-        body.innerHTML = `<p style="color:var(--danger)">${escapeHtml(message)}</p>`;
+    function completeStep(stepEl) {
+        const header = stepEl.querySelector('.step-header');
+        header.querySelector('.spinner-sm').outerHTML = '<span class="step-check">&#10003;</span>';
+        header.querySelector('.step-status-text').textContent = 'Done';
+        stepEl.querySelector('.step-body').classList.add('open');
     }
 
-    function setStepStatus(el, message) {
-        let statusEl = el.querySelector('.step-status-text');
-        if (!statusEl) {
-            statusEl = document.createElement('span');
-            statusEl.className = 'step-status-text';
-            el.querySelector('.pipeline-step-header').appendChild(statusEl);
-        }
-        statusEl.textContent = message;
+    function failStep(stepEl, message) {
+        const header = stepEl.querySelector('.step-header');
+        header.querySelector('.spinner-sm')?.remove();
+        const existing = header.querySelector('.step-check');
+        if (existing) existing.remove();
+        const icon = document.createElement('span');
+        icon.className = 'step-error-icon';
+        icon.innerHTML = '&#10007;';
+        header.prepend(icon);
+        header.querySelector('.step-status-text').textContent = 'Failed';
+        const body = stepEl.querySelector('.step-body');
+        body.innerHTML += `<div class="step-error">${escapeHtml(message)}</div>`;
+        body.classList.add('open');
     }
 
-    function getStepBody(el) {
-        return el.querySelector('.pipeline-step-body');
+    function getStepBody(stepEl) {
+        return stepEl.querySelector('.step-body');
     }
 
-    // ── Step Renderers ──
-
-    function renderJobAnalysis(parentEl, analysis) {
-        const body = getStepBody(parentEl);
-        let html = '';
-
-        if (analysis.key_requirements?.length) {
-            html += `<div class="analysis-group"><h5>Key Requirements</h5><ul>${analysis.key_requirements.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul></div>`;
-        }
-
-        if (analysis.must_have_skills?.length) {
-            html += `<div class="analysis-group"><h5>Must-Have Skills</h5><div class="tags">${analysis.must_have_skills.map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('')}</div></div>`;
-        }
-
-        if (analysis.nice_to_have_skills?.length) {
-            html += `<div class="analysis-group"><h5>Nice-to-Have</h5><div class="tags">${analysis.nice_to_have_skills.map(s => `<span class="tag tag-nice">${escapeHtml(s)}</span>`).join('')}</div></div>`;
-        }
-
-        if (analysis.role_focus_areas?.length) {
-            html += `<div class="analysis-group"><h5>Focus Areas</h5><p>${analysis.role_focus_areas.map(a => escapeHtml(a)).join(' &middot; ')}</p></div>`;
-        }
-
-        if (analysis.seniority_level) {
-            html += `<div class="analysis-group"><h5>Seniority</h5><span class="seniority-badge">${escapeHtml(analysis.seniority_level)}</span></div>`;
-        }
-
-        body.innerHTML = html;
+    function updateStepStatus(stepEl, text) {
+        stepEl.querySelector('.step-status-text').textContent = text;
     }
 
-    function renderRankedItems(parentEl, items) {
-        const body = getStepBody(parentEl);
-        body.innerHTML = items.map((item, i) => {
-            const title = item.type === 'experience'
-                ? `${escapeHtml(item.title)} — ${escapeHtml(item.company)}`
-                : escapeHtml(item.name);
-            const sub = item.type === 'experience'
-                ? `${item.start_date} &ndash; ${item.end_date || 'Present'}`
-                : '';
-            const skillTags = (item.relevant_skills || []).map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('');
-
-            return `
-                <div class="ranked-item">
-                    <span class="rank-number">${i + 1}</span>
-                    <div class="ranked-item-info">
-                        <div class="ranked-item-title">${title}</div>
-                        ${sub ? `<div class="ranked-item-sub">${sub}</div>` : ''}
-                        ${skillTags ? `<div class="tags" style="margin-top:4px">${skillTags}</div>` : ''}
-                    </div>
-                    <span class="relevance-badge">${item.relevance_score}%</span>
-                </div>
-            `;
-        }).join('');
-    }
-
-    function renderItemBullets(parentEl, item, bullets) {
-        const body = getStepBody(parentEl);
-        const title = item.type === 'experience'
-            ? `${escapeHtml(item.title)} — ${escapeHtml(item.company)}`
-            : escapeHtml(item.name);
-        const bulletText = bullets.map(b => `\u2022 ${b}`).join('\n');
-        const skillTags = (item.relevant_skills || []).map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('');
-
-        const card = document.createElement('div');
-        card.className = 'bullet-card';
-        card.innerHTML = `
-            <div class="bullet-card-header">
-                <h5>${title}</h5>
-                <button class="btn-copy" onclick="copyToClipboard(${JSON.stringify(JSON.stringify(bulletText))}, this)">Copy</button>
-            </div>
-            <ul>${bullets.map(b => `<li>${escapeHtml(b)}</li>`).join('')}</ul>
-            ${skillTags ? `<div class="result-skills">${skillTags}</div>` : ''}
-        `;
-        body.appendChild(card);
-    }
-
-    function renderSummary(parentEl, text) {
-        const body = getStepBody(parentEl);
-        body.innerHTML = `
-            <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-                <button class="btn-copy" onclick="copyToClipboard(${JSON.stringify(JSON.stringify(text))}, this)">Copy</button>
-            </div>
-            <p class="summary-text">${escapeHtml(text)}</p>
-        `;
-    }
-
-    // ── Main Pipeline ──
+    // --- Pipeline ---
 
     generateBtn.addEventListener('click', async () => {
         const jobDescription = document.getElementById('job-description').value.trim();
@@ -252,89 +119,323 @@
             return;
         }
 
-        // Reset
         resultsContent.innerHTML = '';
         resultsDiv.classList.remove('hidden');
         generateBtn.disabled = true;
 
         try {
-            // ── STEP 1: Analyze Job ──
-            const step1 = appendStep('Step 1: Analyzing job description...', 'loading');
+            // Step 1: Analyze JD
+            const jobAnalysis = await runAnalyzeJd(jobDescription);
 
-            const analyzeResult = await api('generate/analyze', 'POST', {
-                job_description: jobDescription,
-            });
-            const jobAnalysis = analyzeResult.job_analysis;
+            let allBullets = {};
+            let stepNum = 2;
 
-            completeStep(step1, 'Step 1: Job Analysis');
-            renderJobAnalysis(step1, jobAnalysis);
-
-            // ── STEP 2: Score & Sort ──
-            const step2 = appendStep('Step 2: Ranking & filtering skills...', 'loading');
-
-            const scoreResult = await api('generate/score', 'POST', {
-                job_analysis: jobAnalysis,
-                experience_ids: selectedExpIds,
-                project_ids: selectedProjIds,
-            });
-            const rankedItems = scoreResult.ranked_items;
-
-            completeStep(step2, 'Step 2: Relevance Ranking');
-            renderRankedItems(step2, rankedItems);
-
-            // ── STEP 3: Per-item Bullets ──
-            const step3 = appendStep('Step 3: Generating bullet points...', 'loading');
-            const allBullets = {};
-
-            for (const item of rankedItems) {
-                const itemKey = `${item.type === 'experience' ? 'exp' : 'proj'}_${item.id}`;
-                const label = item.title || item.name;
-                setStepStatus(step3, `Writing bullets for ${label}...`);
-
-                try {
-                    const bulletResult = await api('generate/bullets', 'POST', {
-                        job_analysis: jobAnalysis,
-                        item: item,
-                    });
-
-                    allBullets[bulletResult.item_key] = bulletResult.bullets;
-                    renderItemBullets(step3, item, bulletResult.bullets);
-                } catch (itemErr) {
-                    // Show error for this item but continue
-                    const body = getStepBody(step3);
-                    const errCard = document.createElement('div');
-                    errCard.className = 'bullet-card';
-                    errCard.innerHTML = `<p style="color:var(--danger)">Failed to generate bullets for ${escapeHtml(label)}: ${escapeHtml(itemErr.message)}</p>`;
-                    body.appendChild(errCard);
-                }
+            // Experience group
+            if (selectedExpIds.length) {
+                appendStepGroup('Experience');
+                const expRanked = await runFilterSort(jobAnalysis, selectedExpIds, 'experience', stepNum);
+                stepNum++;
+                const expBullets = await runBullets(jobAnalysis, expRanked, allBullets, 'experience', stepNum);
+                Object.assign(allBullets, expBullets);
+                stepNum++;
             }
 
-            completeStep(step3, 'Step 3: Bullet Points');
-
-            // ── STEP 4: Professional Summary ──
-            if (Object.keys(allBullets).length > 0) {
-                const step4 = appendStep('Step 4: Writing professional summary...', 'loading');
-
-                const summaryResult = await api('generate/summary', 'POST', {
-                    job_analysis: jobAnalysis,
-                    all_bullets: allBullets,
-                });
-
-                completeStep(step4, 'Step 4: Professional Summary');
-                renderSummary(step4, summaryResult.professional_summary);
+            // Project group
+            if (selectedProjIds.length) {
+                appendStepGroup('Projects');
+                const projRanked = await runFilterSort(jobAnalysis, selectedProjIds, 'project', stepNum);
+                stepNum++;
+                const projBullets = await runBullets(jobAnalysis, projRanked, allBullets, 'project', stepNum);
+                Object.assign(allBullets, projBullets);
+                stepNum++;
             }
+
+            // Objective
+            await runObjective(jobAnalysis, allBullets, selectedExpIds, stepNum);
+            stepNum++;
+
+            // ATS check
+            await runAtsCheck(jobAnalysis, allBullets, stepNum);
 
         } catch (err) {
-            // Top-level error (steps 1, 2, or 4 failed entirely)
-            const errEl = document.createElement('div');
-            errEl.className = 'pipeline-step error';
-            errEl.innerHTML = `
-                <div class="pipeline-step-header"><h4>Error</h4></div>
-                <div class="pipeline-step-body"><p style="color:var(--danger)">${escapeHtml(err.message)}</p></div>
-            `;
-            resultsContent.appendChild(errEl);
+            // Pipeline halted — error already shown in the failing step
         } finally {
             generateBtn.disabled = false;
         }
     });
+
+    // --- Analyze JD ---
+
+    async function runAnalyzeJd(jobDescription) {
+        const stepEl = appendStep('Step 1: Analyzing job description...');
+        try {
+            const result = await api('generate&step=analyze-jd', 'POST', {
+                job_description: jobDescription,
+            });
+            renderJobAnalysis(getStepBody(stepEl), result.job_analysis);
+            completeStep(stepEl);
+            return result.job_analysis;
+        } catch (err) {
+            failStep(stepEl, err.message);
+            throw err;
+        }
+    }
+
+    function renderJobAnalysis(body, analysis) {
+        let html = '<div class="analysis-group">';
+        html += `<span class="badge seniority-badge">${escapeHtml(analysis.seniority_level || 'Unknown')}</span> `;
+        html += `<span class="badge employment-badge">${escapeHtml(analysis.employment_type || 'Full-time')}</span>`;
+        html += '</div>';
+
+        if (analysis.required_skills?.length) {
+            html += '<div class="analysis-group"><h5>Required Skills</h5><div class="tags">';
+            html += analysis.required_skills.map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('');
+            html += '</div></div>';
+        }
+
+        if (analysis.preferred_skills?.length) {
+            html += '<div class="analysis-group"><h5>Preferred Skills</h5><div class="tags">';
+            html += analysis.preferred_skills.map(s => `<span class="tag tag-preferred">${escapeHtml(s)}</span>`).join('');
+            html += '</div></div>';
+        }
+
+        if (analysis.key_responsibilities?.length) {
+            html += '<div class="analysis-group"><h5>Key Responsibilities</h5><ul>';
+            html += analysis.key_responsibilities.map(r => `<li>${escapeHtml(r)}</li>`).join('');
+            html += '</ul></div>';
+        }
+
+        body.innerHTML = html;
+    }
+
+    // --- Filter & sort skills ---
+
+    async function runFilterSort(jobAnalysis, itemIds, typeName, stepNum) {
+        const typeLabel = typeName === 'experience' ? 'Experience' : 'Projects';
+        const stepEl = appendStep(`Step ${stepNum}: ${typeLabel} \u2014 Filter & sort skills...`);
+        const body = getStepBody(stepEl);
+        const items = [];
+
+        try {
+            const total = itemIds.length;
+
+            for (let i = 0; i < itemIds.length; i++) {
+                const id = itemIds[i];
+                updateStepStatus(stepEl, `Filtering ${i + 1}/${total}...`);
+
+                const filterResult = await api('generate&step=filter-skills', 'POST', {
+                    job_analysis: jobAnalysis,
+                    item_type: typeName,
+                    item_id: id,
+                });
+
+                updateStepStatus(stepEl, `Sorting ${i + 1}/${total}...`);
+
+                let sortedSkills = filterResult.relevant_skills || [];
+                if (sortedSkills.length > 1) {
+                    const sortResult = await api('generate&step=sort-skills', 'POST', {
+                        job_analysis: jobAnalysis,
+                        item_key: filterResult.item_key,
+                        relevant_skills: sortedSkills,
+                    });
+                    sortedSkills = sortResult.sorted_skills || sortedSkills;
+                }
+
+                items.push({
+                    key: filterResult.item_key,
+                    type: typeName,
+                    item: filterResult.item,
+                    relevance_score: filterResult.relevance_score,
+                    sorted_skills: sortedSkills,
+                });
+            }
+
+            // Sort by relevance score descending within this type
+            items.sort((a, b) => b.relevance_score - a.relevance_score);
+
+            renderRankedItems(body, items);
+            completeStep(stepEl);
+            return items;
+        } catch (err) {
+            failStep(stepEl, err.message);
+            throw err;
+        }
+    }
+
+    function renderRankedItems(body, items) {
+        let html = '';
+        for (const item of items) {
+            const score = item.relevance_score;
+            const scoreClass = score >= 70 ? 'high' : score >= 40 ? 'mid' : 'low';
+            const title = item.type === 'experience'
+                ? `${escapeHtml(item.item.title)} at ${escapeHtml(item.item.company)}`
+                : escapeHtml(item.item.name);
+
+            html += `
+                <div class="ranked-item">
+                    <div class="ranked-item-score ${scoreClass}">${score}</div>
+                    <div class="ranked-item-info">
+                        <div class="ranked-item-title">${title}</div>
+                        ${item.sorted_skills.length
+                            ? `<div class="tags">${item.sorted_skills.map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('')}</div>`
+                            : '<div class="ranked-item-sub">No relevant skills</div>'}
+                    </div>
+                </div>
+            `;
+        }
+        body.innerHTML = html;
+    }
+
+    // --- Generate bullets ---
+
+    async function runBullets(jobAnalysis, rankedItems, previousBullets, typeName, stepNum) {
+        const typeLabel = typeName === 'experience' ? 'Experience' : 'Projects';
+        const stepEl = appendStep(`Step ${stepNum}: ${typeLabel} \u2014 Generate bullets...`);
+        const body = getStepBody(stepEl);
+        const newBullets = {};
+        const currentBullets = Object.assign({}, previousBullets);
+
+        try {
+            for (let i = 0; i < rankedItems.length; i++) {
+                const item = rankedItems[i];
+                updateStepStatus(stepEl, `Item ${i + 1}/${rankedItems.length}...`);
+
+                const result = await api('generate&step=bullets', 'POST', {
+                    job_analysis: jobAnalysis,
+                    item_key: item.key,
+                    item: item.item,
+                    item_type: typeName,
+                    sorted_skills: item.sorted_skills,
+                    previous_bullets: currentBullets,
+                });
+
+                const bullets = result.bullets || [];
+                newBullets[item.key] = bullets;
+                currentBullets[item.key] = bullets;
+
+                renderBulletCard(body, item, bullets);
+            }
+
+            completeStep(stepEl);
+            return newBullets;
+        } catch (err) {
+            failStep(stepEl, err.message);
+            throw err;
+        }
+    }
+
+    function renderBulletCard(body, item, bullets) {
+        const title = item.type === 'experience'
+            ? `${escapeHtml(item.item.title)} \u2014 ${escapeHtml(item.item.company)}`
+            : escapeHtml(item.item.name);
+        const bulletText = bullets.map(b => `\u2022 ${b}`).join('\n');
+
+        const card = document.createElement('div');
+        card.className = 'bullet-card';
+        card.innerHTML = `
+            <div class="bullet-card-header">
+                <h5>${title}</h5>
+                <button class="btn-copy">Copy</button>
+            </div>
+            ${item.sorted_skills.length
+                ? `<div class="tags" style="margin-bottom:8px">${item.sorted_skills.map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('')}</div>`
+                : ''}
+            <ul>${bullets.map(b => `<li>${escapeHtml(b)}</li>`).join('')}</ul>
+        `;
+        card.querySelector('.btn-copy').addEventListener('click', function () {
+            copyToClipboard(bulletText, this);
+        });
+        body.appendChild(card);
+    }
+
+    // --- Objective ---
+
+    let generatedObjective = '';
+
+    async function runObjective(jobAnalysis, allBullets, experienceIds, stepNum) {
+        const stepEl = appendStep(`Step ${stepNum}: Generating objective...`);
+
+        try {
+            const result = await api('generate&step=objective', 'POST', {
+                job_analysis: jobAnalysis,
+                all_bullets: allBullets,
+                experience_ids: experienceIds,
+            });
+
+            generatedObjective = result.objective || '';
+            const body = getStepBody(stepEl);
+            body.innerHTML = `
+                <div class="objective-header">
+                    <h5>Resume Objective</h5>
+                    <button class="btn-copy">Copy</button>
+                </div>
+                <div class="objective-text">${escapeHtml(generatedObjective)}</div>
+            `;
+            body.querySelector('.btn-copy').addEventListener('click', function () {
+                copyToClipboard(generatedObjective, this);
+            });
+            completeStep(stepEl);
+        } catch (err) {
+            failStep(stepEl, err.message);
+            throw err;
+        }
+    }
+
+    // --- ATS check ---
+
+    async function runAtsCheck(jobAnalysis, allBullets, stepNum) {
+        const stepEl = appendStep(`Step ${stepNum}: Checking ATS keywords...`);
+
+        try {
+            const result = await api('generate&step=ats-check', 'POST', {
+                job_analysis: jobAnalysis,
+                all_bullets: allBullets,
+                objective: generatedObjective,
+            });
+
+            renderAtsCheck(getStepBody(stepEl), result.ats_result);
+            completeStep(stepEl);
+        } catch (err) {
+            failStep(stepEl, err.message);
+            throw err;
+        }
+    }
+
+    function renderAtsCheck(body, atsResult) {
+        let html = '';
+
+        // Coverage meter
+        const pct = atsResult.keyword_coverage_pct || 0;
+        const meterColor = pct >= 80 ? '#16a34a' : pct >= 60 ? '#ca8a04' : '#dc2626';
+        html += `
+            <div class="ats-coverage">
+                <div class="ats-coverage-label">Keyword Coverage: <strong>${pct}%</strong></div>
+                <div class="ats-meter">
+                    <div class="ats-meter-fill" style="width:${pct}%;background:${meterColor}"></div>
+                </div>
+            </div>
+        `;
+
+        if (atsResult.matched_keywords?.length) {
+            html += '<div class="analysis-group"><h5>Matched Keywords</h5><div class="tags">';
+            html += atsResult.matched_keywords.map(k => `<span class="tag tag-matched">${escapeHtml(k)}</span>`).join('');
+            html += '</div></div>';
+        }
+
+        if (atsResult.missing_keywords?.length) {
+            html += '<div class="analysis-group"><h5>Missing Keywords</h5><div class="tags">';
+            html += atsResult.missing_keywords.map(k => `<span class="tag tag-missing">${escapeHtml(k)}</span>`).join('');
+            html += '</div></div>';
+        }
+
+        if (atsResult.suggestions?.length) {
+            html += '<div class="analysis-group"><h5>Suggestions</h5><ul class="ats-suggestions">';
+            for (const s of atsResult.suggestions) {
+                html += `<li><strong>${escapeHtml(s.keyword)}:</strong> ${escapeHtml(s.suggestion)}</li>`;
+            }
+            html += '</ul></div>';
+        }
+
+        body.innerHTML = html;
+    }
 })();

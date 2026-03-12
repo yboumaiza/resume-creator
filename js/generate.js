@@ -5,8 +5,45 @@
     const expCheckboxes = document.getElementById('experience-checkboxes');
     const projCheckboxes = document.getElementById('project-checkboxes');
 
+    // Editable results DOM refs
+    const editableResultsDiv = document.getElementById('editable-results');
+    const resultObjectiveSlot = document.getElementById('result-objective');
+    const resultExperiencesSlot = document.getElementById('result-experiences');
+    const resultProjectsSlot = document.getElementById('result-projects');
+
     let experiences = [];
     let projects = [];
+
+    // --- Editable state ---
+
+    const editableResults = {
+        objective: '',
+        experiences: [],
+        projects: [],
+    };
+
+    function resetEditableResults() {
+        editableResults.objective = '';
+        editableResults.experiences = [];
+        editableResults.projects = [];
+        resultObjectiveSlot.innerHTML = '';
+        resultObjectiveSlot.classList.add('hidden');
+        resultExperiencesSlot.innerHTML = '';
+        resultExperiencesSlot.classList.add('hidden');
+        resultProjectsSlot.innerHTML = '';
+        resultProjectsSlot.classList.add('hidden');
+    }
+
+    function populateEditableItems(section, rankedItems, bulletsMap) {
+        editableResults[section] = rankedItems.map(ri => ({
+            key: ri.key,
+            item: ri.item,
+            type: ri.type,
+            relevance_score: ri.relevance_score,
+            skills: [...(ri.sorted_skills || [])],
+            bullets: [...(bulletsMap[ri.key] || [])],
+        }));
+    }
 
     // --- Checkbox loading ---
 
@@ -72,11 +109,13 @@
         resultsContent.appendChild(group);
     }
 
-    function completeStep(stepEl) {
+    function completeStep(stepEl, autoOpen) {
         const header = stepEl.querySelector('.step-header');
         header.querySelector('.spinner-sm').outerHTML = '<span class="step-check">&#10003;</span>';
         header.querySelector('.step-status-text').textContent = 'Done';
-        stepEl.querySelector('.step-body').classList.add('open');
+        if (autoOpen !== false) {
+            stepEl.querySelector('.step-body').classList.add('open');
+        }
     }
 
     function failStep(stepEl, message) {
@@ -121,6 +160,8 @@
 
         resultsContent.innerHTML = '';
         resultsDiv.classList.remove('hidden');
+        resetEditableResults();
+        editableResultsDiv.classList.remove('hidden');
         generateBtn.disabled = true;
 
         try {
@@ -138,6 +179,9 @@
                 const expBullets = await runBullets(jobAnalysis, expRanked, allBullets, 'experience', stepNum);
                 Object.assign(allBullets, expBullets);
                 stepNum++;
+
+                populateEditableItems('experiences', expRanked, expBullets);
+                renderEditableSection('experiences');
             }
 
             // Project group
@@ -148,11 +192,15 @@
                 const projBullets = await runBullets(jobAnalysis, projRanked, allBullets, 'project', stepNum);
                 Object.assign(allBullets, projBullets);
                 stepNum++;
+
+                populateEditableItems('projects', projRanked, projBullets);
+                renderEditableSection('projects');
             }
 
             // Objective
             await runObjective(jobAnalysis, allBullets, selectedExpIds, stepNum);
             stepNum++;
+            renderEditableObjective();
 
             // ATS check
             await runAtsCheck(jobAnalysis, allBullets, stepNum);
@@ -253,37 +301,13 @@
             // Sort by relevance score descending within this type
             items.sort((a, b) => b.relevance_score - a.relevance_score);
 
-            renderRankedItems(body, items);
-            completeStep(stepEl);
+            body.innerHTML = `<p class="step-summary">${items.length} item${items.length !== 1 ? 's' : ''} ranked</p>`;
+            completeStep(stepEl, false);
             return items;
         } catch (err) {
             failStep(stepEl, err.message);
             throw err;
         }
-    }
-
-    function renderRankedItems(body, items) {
-        let html = '';
-        for (const item of items) {
-            const score = item.relevance_score;
-            const scoreClass = score >= 70 ? 'high' : score >= 40 ? 'mid' : 'low';
-            const title = item.type === 'experience'
-                ? `${escapeHtml(item.item.title)} at ${escapeHtml(item.item.company)}`
-                : escapeHtml(item.item.name);
-
-            html += `
-                <div class="ranked-item">
-                    <div class="ranked-item-score ${scoreClass}">${score}</div>
-                    <div class="ranked-item-info">
-                        <div class="ranked-item-title">${title}</div>
-                        ${item.sorted_skills.length
-                            ? `<div class="tags">${item.sorted_skills.map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('')}</div>`
-                            : '<div class="ranked-item-sub">No relevant skills</div>'}
-                    </div>
-                </div>
-            `;
-        }
-        body.innerHTML = html;
     }
 
     // --- Generate bullets ---
@@ -312,40 +336,15 @@
                 const bullets = result.bullets || [];
                 newBullets[item.key] = bullets;
                 currentBullets[item.key] = bullets;
-
-                renderBulletCard(body, item, bullets);
             }
 
-            completeStep(stepEl);
+            body.innerHTML = `<p class="step-summary">${rankedItems.length} item${rankedItems.length !== 1 ? 's' : ''} processed</p>`;
+            completeStep(stepEl, false);
             return newBullets;
         } catch (err) {
             failStep(stepEl, err.message);
             throw err;
         }
-    }
-
-    function renderBulletCard(body, item, bullets) {
-        const title = item.type === 'experience'
-            ? `${escapeHtml(item.item.title)} \u2014 ${escapeHtml(item.item.company)}`
-            : escapeHtml(item.item.name);
-        const bulletText = bullets.map(b => `\u2022 ${b}`).join('\n');
-
-        const card = document.createElement('div');
-        card.className = 'bullet-card';
-        card.innerHTML = `
-            <div class="bullet-card-header">
-                <h5>${title}</h5>
-                <button class="btn-copy">Copy</button>
-            </div>
-            ${item.sorted_skills.length
-                ? `<div class="tags" style="margin-bottom:8px">${item.sorted_skills.map(s => `<span class="tag">${escapeHtml(s)}</span>`).join('')}</div>`
-                : ''}
-            <ul>${bullets.map(b => `<li>${escapeHtml(b)}</li>`).join('')}</ul>
-        `;
-        card.querySelector('.btn-copy').addEventListener('click', function () {
-            copyToClipboard(bulletText, this);
-        });
-        body.appendChild(card);
     }
 
     // --- Objective ---
@@ -363,18 +362,8 @@
             });
 
             generatedObjective = result.objective || '';
-            const body = getStepBody(stepEl);
-            body.innerHTML = `
-                <div class="objective-header">
-                    <h5>Resume Objective</h5>
-                    <button class="btn-copy">Copy</button>
-                </div>
-                <div class="objective-text">${escapeHtml(generatedObjective)}</div>
-            `;
-            body.querySelector('.btn-copy').addEventListener('click', function () {
-                copyToClipboard(generatedObjective, this);
-            });
-            completeStep(stepEl);
+            editableResults.objective = generatedObjective;
+            completeStep(stepEl, false);
         } catch (err) {
             failStep(stepEl, err.message);
             throw err;
@@ -404,7 +393,6 @@
     function renderAtsCheck(body, atsResult) {
         let html = '';
 
-        // Coverage meter
         const pct = atsResult.keyword_coverage_pct || 0;
         const meterColor = pct >= 80 ? '#16a34a' : pct >= 60 ? '#ca8a04' : '#dc2626';
         html += `
@@ -437,5 +425,313 @@
         }
 
         body.innerHTML = html;
+    }
+
+    // ===== Editable Results Rendering =====
+
+    // --- Editable section (experiences or projects) ---
+
+    function renderEditableSection(section) {
+        const slot = section === 'experiences' ? resultExperiencesSlot : resultProjectsSlot;
+        const items = editableResults[section];
+        const sectionLabel = section === 'experiences' ? 'Experience' : 'Projects';
+
+        let html = `<h4 class="result-section-title">${sectionLabel}</h4>`;
+        items.forEach((entry, idx) => {
+            html += renderEditableItemCard(entry, section, idx);
+        });
+
+        slot.innerHTML = html;
+        slot.classList.remove('hidden');
+        attachEditableHandlers(slot, section);
+    }
+
+    function renderEditableItemCard(entry, section, idx) {
+        const title = entry.type === 'experience'
+            ? `${escapeHtml(entry.item.title)} \u2014 ${escapeHtml(entry.item.company)}`
+            : escapeHtml(entry.item.name);
+        const score = entry.relevance_score;
+        const scoreClass = score >= 70 ? 'high' : score >= 40 ? 'mid' : 'low';
+
+        // Skills
+        let skillsHtml = '<div class="editable-tags">';
+        entry.skills.forEach((s, si) => {
+            const isFirst = si === 0;
+            const isLast = si === entry.skills.length - 1;
+            skillsHtml += `
+                <span class="tag editable-tag" data-section="${section}" data-item="${idx}" data-skill="${si}">
+                    ${escapeHtml(s)}
+                    <span class="tag-actions">
+                        ${!isFirst ? '<button class="tag-action tag-up" title="Move up">&uarr;</button>' : ''}
+                        ${!isLast ? '<button class="tag-action tag-down" title="Move down">&darr;</button>' : ''}
+                        <button class="tag-action tag-edit" title="Edit">&#9998;</button>
+                        <button class="tag-action tag-delete" title="Delete">&times;</button>
+                    </span>
+                </span>`;
+        });
+        skillsHtml += `<button class="tag-action tag-add" data-section="${section}" data-item="${idx}" title="Add skill">+</button>`;
+        skillsHtml += '</div>';
+
+        // Bullets
+        let bulletsHtml = '<ul class="editable-bullets">';
+        entry.bullets.forEach((b, bi) => {
+            const isFirst = bi === 0;
+            const isLast = bi === entry.bullets.length - 1;
+            bulletsHtml += `
+                <li class="editable-bullet" data-section="${section}" data-item="${idx}" data-bullet="${bi}">
+                    <span class="bullet-text">${escapeHtml(b)}</span>
+                    <span class="bullet-actions">
+                        ${!isFirst ? '<button class="bullet-action bullet-up" title="Move up">&uarr;</button>' : ''}
+                        ${!isLast ? '<button class="bullet-action bullet-down" title="Move down">&darr;</button>' : ''}
+                        <button class="bullet-action bullet-edit" title="Edit">&#9998;</button>
+                        <button class="bullet-action bullet-delete" title="Delete">&times;</button>
+                    </span>
+                </li>`;
+        });
+        bulletsHtml += '</ul>';
+        bulletsHtml += `<button class="btn btn-sm bullet-add" data-section="${section}" data-item="${idx}">+ Add Bullet</button>`;
+
+        return `
+            <div class="editable-item-card" data-section="${section}" data-item="${idx}">
+                <div class="editable-item-header">
+                    <div class="ranked-item-score ${scoreClass}">${score}</div>
+                    <div class="editable-item-title">${title}</div>
+                    <button class="btn-copy item-copy" data-section="${section}" data-item="${idx}">Copy</button>
+                </div>
+                <div class="editable-item-skills">
+                    <h5>Skills</h5>
+                    ${skillsHtml}
+                </div>
+                <div class="editable-item-bullets">
+                    <h5>Bullets</h5>
+                    ${bulletsHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    // --- Editable objective ---
+
+    function renderEditableObjective() {
+        if (!editableResults.objective) return;
+        resultObjectiveSlot.innerHTML = `
+            <div class="editable-objective-card">
+                <div class="objective-header">
+                    <h4>Objective</h4>
+                    <div>
+                        <button class="btn btn-sm objective-edit">&#9998; Edit</button>
+                        <button class="btn-copy objective-copy">Copy</button>
+                    </div>
+                </div>
+                <div class="objective-text">${escapeHtml(editableResults.objective)}</div>
+            </div>
+        `;
+        resultObjectiveSlot.classList.remove('hidden');
+
+        resultObjectiveSlot.querySelector('.objective-copy').addEventListener('click', function () {
+            copyToClipboard(editableResults.objective, this);
+        });
+
+        resultObjectiveSlot.querySelector('.objective-edit').addEventListener('click', () => {
+            openModal('Edit Objective', `
+                <div class="form-group">
+                    <label>Objective</label>
+                    <textarea name="objective-value" rows="4" required>${escapeHtml(editableResults.objective)}</textarea>
+                </div>
+            `, () => {
+                const val = document.querySelector('#modal-form [name="objective-value"]').value.trim();
+                if (val) {
+                    editableResults.objective = val;
+                    generatedObjective = val;
+                    renderEditableObjective();
+                }
+                closeModal();
+            });
+        });
+    }
+
+    // --- Event delegation for editable items ---
+
+    function attachEditableHandlers(container, section) {
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+
+            const tag = btn.closest('.editable-tag');
+            const bullet = btn.closest('.editable-bullet');
+
+            // Skill tag actions
+            if (tag) {
+                const itemIdx = parseInt(tag.dataset.item);
+                const skillIdx = parseInt(tag.dataset.skill);
+                if (btn.classList.contains('tag-delete')) {
+                    deleteSkill(section, itemIdx, skillIdx);
+                } else if (btn.classList.contains('tag-edit')) {
+                    editSkillModal(section, itemIdx, skillIdx);
+                } else if (btn.classList.contains('tag-up')) {
+                    moveSkill(section, itemIdx, skillIdx, -1);
+                } else if (btn.classList.contains('tag-down')) {
+                    moveSkill(section, itemIdx, skillIdx, 1);
+                }
+                return;
+            }
+
+            // Add skill
+            if (btn.classList.contains('tag-add')) {
+                const itemIdx = parseInt(btn.dataset.item);
+                addSkillModal(section, itemIdx);
+                return;
+            }
+
+            // Bullet actions
+            if (bullet) {
+                const itemIdx = parseInt(bullet.dataset.item);
+                const bulletIdx = parseInt(bullet.dataset.bullet);
+                if (btn.classList.contains('bullet-delete')) {
+                    deleteBullet(section, itemIdx, bulletIdx);
+                } else if (btn.classList.contains('bullet-edit')) {
+                    editBulletModal(section, itemIdx, bulletIdx);
+                } else if (btn.classList.contains('bullet-up')) {
+                    moveBullet(section, itemIdx, bulletIdx, -1);
+                } else if (btn.classList.contains('bullet-down')) {
+                    moveBullet(section, itemIdx, bulletIdx, 1);
+                }
+                return;
+            }
+
+            // Add bullet
+            if (btn.classList.contains('bullet-add')) {
+                const itemIdx = parseInt(btn.dataset.item);
+                addBulletModal(section, itemIdx);
+                return;
+            }
+
+            // Copy item
+            if (btn.classList.contains('item-copy')) {
+                const itemIdx = parseInt(btn.dataset.item);
+                copyItemToClipboard(section, itemIdx, btn);
+                return;
+            }
+        });
+    }
+
+    // --- Mutation functions ---
+
+    function rerenderItem(section, itemIdx) {
+        const slot = section === 'experiences' ? resultExperiencesSlot : resultProjectsSlot;
+        const oldCard = slot.querySelector(`.editable-item-card[data-item="${itemIdx}"]`);
+        if (!oldCard) return;
+        const entry = editableResults[section][itemIdx];
+        const temp = document.createElement('div');
+        temp.innerHTML = renderEditableItemCard(entry, section, itemIdx);
+        oldCard.replaceWith(temp.firstElementChild);
+    }
+
+    // Skills
+
+    function deleteSkill(section, itemIdx, skillIdx) {
+        editableResults[section][itemIdx].skills.splice(skillIdx, 1);
+        rerenderItem(section, itemIdx);
+    }
+
+    function moveSkill(section, itemIdx, skillIdx, direction) {
+        const skills = editableResults[section][itemIdx].skills;
+        const newIdx = skillIdx + direction;
+        if (newIdx < 0 || newIdx >= skills.length) return;
+        [skills[skillIdx], skills[newIdx]] = [skills[newIdx], skills[skillIdx]];
+        rerenderItem(section, itemIdx);
+    }
+
+    function editSkillModal(section, itemIdx, skillIdx) {
+        const current = editableResults[section][itemIdx].skills[skillIdx];
+        openModal('Edit Skill', `
+            <div class="form-group">
+                <label>Skill</label>
+                <input type="text" name="skill-value" value="${escapeHtml(current)}" required>
+            </div>
+        `, () => {
+            const val = document.querySelector('#modal-form [name="skill-value"]').value.trim();
+            if (val) {
+                editableResults[section][itemIdx].skills[skillIdx] = val;
+                rerenderItem(section, itemIdx);
+            }
+            closeModal();
+        });
+    }
+
+    function addSkillModal(section, itemIdx) {
+        openModal('Add Skill', `
+            <div class="form-group">
+                <label>Skill</label>
+                <input type="text" name="skill-value" required placeholder="Enter skill name">
+            </div>
+        `, () => {
+            const val = document.querySelector('#modal-form [name="skill-value"]').value.trim();
+            if (val) {
+                editableResults[section][itemIdx].skills.push(val);
+                rerenderItem(section, itemIdx);
+            }
+            closeModal();
+        });
+    }
+
+    // Bullets
+
+    function deleteBullet(section, itemIdx, bulletIdx) {
+        editableResults[section][itemIdx].bullets.splice(bulletIdx, 1);
+        rerenderItem(section, itemIdx);
+    }
+
+    function moveBullet(section, itemIdx, bulletIdx, direction) {
+        const bullets = editableResults[section][itemIdx].bullets;
+        const newIdx = bulletIdx + direction;
+        if (newIdx < 0 || newIdx >= bullets.length) return;
+        [bullets[bulletIdx], bullets[newIdx]] = [bullets[newIdx], bullets[bulletIdx]];
+        rerenderItem(section, itemIdx);
+    }
+
+    function editBulletModal(section, itemIdx, bulletIdx) {
+        const current = editableResults[section][itemIdx].bullets[bulletIdx];
+        openModal('Edit Bullet', `
+            <div class="form-group">
+                <label>Bullet Point</label>
+                <textarea name="bullet-value" rows="3" required>${escapeHtml(current)}</textarea>
+            </div>
+        `, () => {
+            const val = document.querySelector('#modal-form [name="bullet-value"]').value.trim();
+            if (val) {
+                editableResults[section][itemIdx].bullets[bulletIdx] = val;
+                rerenderItem(section, itemIdx);
+            }
+            closeModal();
+        });
+    }
+
+    function addBulletModal(section, itemIdx) {
+        openModal('Add Bullet', `
+            <div class="form-group">
+                <label>Bullet Point</label>
+                <textarea name="bullet-value" rows="3" required placeholder="Enter bullet point"></textarea>
+            </div>
+        `, () => {
+            const val = document.querySelector('#modal-form [name="bullet-value"]').value.trim();
+            if (val) {
+                editableResults[section][itemIdx].bullets.push(val);
+                rerenderItem(section, itemIdx);
+            }
+            closeModal();
+        });
+    }
+
+    // Copy
+
+    function copyItemToClipboard(section, itemIdx, btn) {
+        const entry = editableResults[section][itemIdx];
+        let text = '';
+        if (entry.skills.length) {
+            text += 'Skills: ' + entry.skills.join(', ') + '\n';
+        }
+        text += entry.bullets.map(b => '\u2022 ' + b).join('\n');
+        copyToClipboard(text, btn);
     }
 })();

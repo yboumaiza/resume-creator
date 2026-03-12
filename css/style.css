@@ -758,6 +758,238 @@ header h1 {
     margin-bottom: 12px;
 }
 
+/* Step summary (progress-only steps) */
+.step-summary {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 4px 0;
+    margin: 0;
+}
+
+/* ===== Editable Results Section ===== */
+
+#editable-results {
+    margin-top: 24px;
+}
+
+.result-slot.hidden {
+    display: none;
+}
+
+.result-section-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding: 12px 0 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+}
+
+/* Editable item cards */
+.editable-item-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+}
+
+.editable-item-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.editable-item-title {
+    flex: 1;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.editable-item-skills,
+.editable-item-bullets {
+    margin-bottom: 12px;
+}
+
+.editable-item-skills h5,
+.editable-item-bullets h5 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+/* Editable tags (skills) */
+.editable-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.editable-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 8px;
+    background: #e0e7ff;
+    color: #3730a3;
+    border-radius: 99px;
+    font-size: 0.8rem;
+}
+
+.tag-actions {
+    display: inline-flex;
+    gap: 1px;
+    margin-left: 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.editable-tag:hover .tag-actions {
+    opacity: 1;
+}
+
+.tag-action {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.65rem;
+    padding: 0 2px;
+    color: #3730a3;
+    line-height: 1;
+}
+
+.tag-action:hover {
+    color: var(--primary);
+}
+
+.tag-action.tag-delete:hover {
+    color: var(--danger);
+}
+
+.tag-action.tag-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #e0e7ff;
+    color: #3730a3;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: 1px dashed #3730a3;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.tag-action.tag-add:hover {
+    opacity: 1;
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+/* Editable bullets */
+.editable-bullets {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 8px;
+}
+
+.editable-bullet {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    transition: background 0.15s;
+}
+
+.editable-bullet:hover {
+    background: var(--bg);
+}
+
+.bullet-text {
+    flex: 1;
+}
+
+.bullet-text::before {
+    content: '\2022 ';
+}
+
+.bullet-actions {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+}
+
+.editable-bullet:hover .bullet-actions {
+    opacity: 1;
+}
+
+.bullet-action {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.65rem;
+    padding: 2px 4px;
+    color: var(--text-muted);
+    line-height: 1;
+}
+
+.bullet-action:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+.bullet-action.bullet-delete:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.bullet-add {
+    margin-top: 4px;
+}
+
+/* Editable objective */
+.editable-objective-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+}
+
+.editable-objective-card .objective-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.editable-objective-card .objective-header h4 {
+    font-size: 0.95rem;
+    margin: 0;
+}
+
+.editable-objective-card .objective-header div {
+    display: flex;
+    gap: 6px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .selection-columns {

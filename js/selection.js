@@ -1,6 +1,6 @@
 (function () {
-    const generateBtn = document.getElementById('generate-btn');
-    const resultsDiv = document.getElementById('generate-results');
+    const generateBtn = document.getElementById('selection-btn');
+    const resultsDiv = document.getElementById('selection-results');
     const resultsContent = document.getElementById('results-content');
     const expCheckboxes = document.getElementById('experience-checkboxes');
     const projCheckboxes = document.getElementById('project-checkboxes');
@@ -51,7 +51,7 @@
 
     // --- Checkbox loading ---
 
-    window.loadGenerateCheckboxes = async function () {
+    window.loadSelectionCheckboxes = async function () {
         try {
             [experiences, projects] = await Promise.all([
                 api('experiences'),
@@ -230,7 +230,7 @@
     async function runAnalyzeJd(jobDescription) {
         const stepEl = appendStep('Step 1: Analyzing job description...');
         try {
-            const result = await api('generate&step=analyze-jd', 'POST', {
+            const result = await api('selection&step=analyze-jd', 'POST', {
                 job_description: jobDescription,
             });
             renderJobAnalysis(getStepBody(stepEl), result.job_analysis);
@@ -284,7 +284,7 @@
                 const id = itemIds[i];
                 updateStepStatus(stepEl, `Filtering ${i + 1}/${total}...`);
 
-                const filterResult = await api('generate&step=filter-skills', 'POST', {
+                const filterResult = await api('selection&step=filter-skills', 'POST', {
                     job_analysis: jobAnalysis,
                     item_type: typeName,
                     item_id: id,
@@ -294,7 +294,7 @@
 
                 let sortedSkills = filterResult.relevant_skills || [];
                 if (sortedSkills.length > 1) {
-                    const sortResult = await api('generate&step=sort-skills', 'POST', {
+                    const sortResult = await api('selection&step=sort-skills', 'POST', {
                         job_analysis: jobAnalysis,
                         item_key: filterResult.item_key,
                         relevant_skills: sortedSkills,
@@ -337,7 +337,7 @@
                 const item = rankedItems[i];
                 updateStepStatus(stepEl, `Item ${i + 1}/${rankedItems.length}...`);
 
-                const result = await api('generate&step=bullets', 'POST', {
+                const result = await api('selection&step=bullets', 'POST', {
                     job_analysis: jobAnalysis,
                     item_key: item.key,
                     item: item.item,
@@ -368,7 +368,7 @@
         const stepEl = appendStep(`Step ${stepNum}: Generating objective...`);
 
         try {
-            const result = await api('generate&step=objective', 'POST', {
+            const result = await api('selection&step=objective', 'POST', {
                 job_analysis: jobAnalysis,
                 all_bullets: allBullets,
                 experience_ids: experienceIds,
@@ -389,7 +389,7 @@
         const stepEl = appendStep(`Step ${stepNum}: Checking ATS keywords...`);
 
         try {
-            const result = await api('generate&step=ats-check', 'POST', {
+            const result = await api('selection&step=ats-check', 'POST', {
                 job_analysis: jobAnalysis,
                 all_bullets: allBullets,
                 objective: generatedObjective,
@@ -507,9 +507,8 @@
         return `
             <div class="editable-item-card" data-section="${section}" data-item="${idx}">
                 <div class="editable-item-header">
-                    <div class="ranked-item-score ${scoreClass}">${score}</div>
                     <div class="editable-item-title">${title}</div>
-                    <button class="btn-copy item-copy" data-section="${section}" data-item="${idx}">Copy</button>
+                    <div class="ranked-item-score ${scoreClass}">${score}</div>
                 </div>
                 <div class="editable-item-skills">
                     <h5>Skills</h5>
@@ -533,17 +532,12 @@
                     <h4>Objective</h4>
                     <div>
                         <button class="btn btn-sm objective-edit">&#9998; Edit</button>
-                        <button class="btn-copy objective-copy">Copy</button>
                     </div>
                 </div>
                 <div class="objective-text">${escapeHtml(editableResults.objective)}</div>
             </div>
         `;
         resultObjectiveSlot.classList.remove('hidden');
-
-        resultObjectiveSlot.querySelector('.objective-copy').addEventListener('click', function () {
-            copyToClipboard(editableResults.objective, this);
-        });
 
         resultObjectiveSlot.querySelector('.objective-edit').addEventListener('click', () => {
             openModal('Edit Objective', `
@@ -616,13 +610,6 @@
             if (btn.classList.contains('bullet-add')) {
                 const itemIdx = parseInt(btn.dataset.item);
                 addBulletModal(section, itemIdx);
-                return;
-            }
-
-            // Copy item
-            if (btn.classList.contains('item-copy')) {
-                const itemIdx = parseInt(btn.dataset.item);
-                copyItemToClipboard(section, itemIdx, btn);
                 return;
             }
         });
@@ -734,17 +721,5 @@
             }
             closeModal();
         });
-    }
-
-    // Copy
-
-    function copyItemToClipboard(section, itemIdx, btn) {
-        const entry = editableResults[section][itemIdx];
-        let text = '';
-        if (entry.skills.length) {
-            text += 'Skills: ' + entry.skills.join(', ') + '\n';
-        }
-        text += entry.bullets.map(b => '\u2022 ' + b).join('\n');
-        copyToClipboard(text, btn);
     }
 })();

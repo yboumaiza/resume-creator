@@ -28,8 +28,8 @@ document.querySelectorAll('.tab').forEach(tab => {
         if (tab.dataset.tab === 'personal' && typeof loadPersonalInfo === 'function') {
             loadPersonalInfo();
         }
-        if (tab.dataset.tab === 'generate') {
-            loadGenerateCheckboxes();
+        if (tab.dataset.tab === 'selection' && typeof loadSelectionCheckboxes === 'function') {
+            loadSelectionCheckboxes();
         }
     });
 });
@@ -106,12 +106,4 @@ function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
-}
-
-function copyToClipboard(text, btn) {
-    navigator.clipboard.writeText(text).then(() => {
-        const original = btn.textContent;
-        btn.textContent = 'Copied!';
-        setTimeout(() => btn.textContent = original, 1500);
-    });
 }

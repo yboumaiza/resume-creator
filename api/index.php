@@ -31,7 +31,7 @@ require_once $base . '/src/Controllers/ExperienceController.php';
 require_once $base . '/src/Controllers/ProjectController.php';
 require_once $base . '/src/Controllers/TestimonialController.php';
 
-require_once $base . '/src/Controllers/GenerateController.php';
+require_once $base . '/src/Controllers/SelectionController.php';
 
 $router = new Router();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -60,6 +60,6 @@ $router->register('POST', 'testimonials', [TestimonialController::class, 'store'
 $router->register('PUT', 'testimonials', [TestimonialController::class, 'update']);
 $router->register('DELETE', 'testimonials', [TestimonialController::class, 'destroy']);
 
-$router->register('POST', 'generate', [GenerateController::class, 'generate']);
+$router->register('POST', 'selection', [SelectionController::class, 'generate']);
 
 $router->dispatch($method, $route);

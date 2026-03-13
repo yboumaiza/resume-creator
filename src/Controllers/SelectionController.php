@@ -1,6 +1,6 @@
 <?php
 
-class GenerateController
+class SelectionController
 {
     private Experience $experienceModel;
     private Project $projectModel;

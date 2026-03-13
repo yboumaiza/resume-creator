@@ -17,7 +17,7 @@
                 <button class="tab" data-tab="projects">Projects</button>
 
                 <button class="tab" data-tab="testimonials">Testimonials</button>
-                <button class="tab" data-tab="generate">Generate</button>
+                <button class="tab" data-tab="selection">Selection</button>
                 <button class="tab" data-tab="preview">Preview</button>
             </nav>
         </header>
@@ -110,10 +110,10 @@
             <div id="testimonial-list" class="card-list"></div>
         </section>
 
-        <!-- Generate Tab -->
-        <section id="tab-generate" class="tab-content">
-            <h2>Generate Resume Content</h2>
-            <div class="generate-form">
+        <!-- Selection Tab -->
+        <section id="tab-selection" class="tab-content">
+            <h2>Selection</h2>
+            <div class="selection-form">
                 <label for="job-description">Target Job Description</label>
                 <textarea id="job-description" rows="6" placeholder="Paste the job description you're applying for..."></textarea>
 
@@ -128,10 +128,10 @@
                     </div>
                 </div>
 
-                <button class="btn btn-primary btn-generate" id="generate-btn">Generate</button>
+                <button class="btn btn-primary btn-selection" id="selection-btn">Generate</button>
             </div>
 
-            <div id="generate-results" class="results hidden">
+            <div id="selection-results" class="results hidden">
                 <div id="results-content"></div>
             </div>
 
@@ -148,7 +148,7 @@
                 <div id="result-experiences" class="result-slot hidden"></div>
                 <div id="result-projects" class="result-slot hidden"></div>
             </div>
-            <p id="preview-empty" class="empty-state">No generated content yet. Go to the Generate tab to create resume content.</p>
+            <p id="preview-empty" class="empty-state">No generated content yet. Go to the Selection tab to create resume content.</p>
         </section>
     </div>
 
@@ -175,6 +175,6 @@
     <script src="js/experience.js"></script>
     <script src="js/projects.js"></script>
     <script src="js/testimonials.js"></script>
-    <script src="js/generate.js"></script>
+    <script src="js/selection.js"></script>
 </body>
 </html>

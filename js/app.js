@@ -25,6 +25,9 @@ document.querySelectorAll('.tab').forEach(tab => {
         tab.classList.add('active');
         document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
 
+        if (tab.dataset.tab === 'personal' && typeof loadPersonalInfo === 'function') {
+            loadPersonalInfo();
+        }
         if (tab.dataset.tab === 'generate') {
             loadGenerateCheckboxes();
         }

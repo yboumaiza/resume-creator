@@ -36,13 +36,14 @@ class Experience
     public function create(array $data): int
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO experiences (company, title, start_date, end_date, description, skills) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO experiences (company, title, start_date, end_date, commitment, description, skills) VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $data['company'],
             $data['title'],
             $data['start_date'],
             $data['end_date'] ?? null,
+            $data['commitment'] ?? null,
             $data['description'],
             json_encode($data['skills'] ?? []),
         ]);
@@ -54,7 +55,7 @@ class Experience
         $fields = [];
         $values = [];
 
-        foreach (['company', 'title', 'start_date', 'end_date', 'description'] as $field) {
+        foreach (['company', 'title', 'start_date', 'end_date', 'commitment', 'description'] as $field) {
             if (array_key_exists($field, $data)) {
                 $fields[] = "$field = ?";
                 $values[] = $data[$field];

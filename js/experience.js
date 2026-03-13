@@ -21,7 +21,7 @@
                 <div class="card-header">
                     <div>
                         <div class="card-title">${escapeHtml(item.title)}</div>
-                        <div class="card-subtitle">${escapeHtml(item.company)} &middot; ${item.start_date} &ndash; ${item.end_date || 'Present'}</div>
+                        <div class="card-subtitle">${escapeHtml(item.company)} &middot; ${item.start_date} &ndash; ${item.end_date || 'Present'}${item.commitment ? ' &middot; <span class="badge commitment-badge">' + escapeHtml(item.commitment) + '</span>' : ''}</div>
                     </div>
                     <div class="card-actions">
                         <button class="btn btn-sm" onclick="editExperience(${item.id})">Edit</button>
@@ -53,6 +53,16 @@
                 <input type="date" name="end_date" value="${data.end_date || ''}">
             </div>
             <div class="form-group">
+                <label>Commitment</label>
+                <select name="commitment">
+                    <option value="">Select...</option>
+                    <option value="Full-Time"${data.commitment === 'Full-Time' ? ' selected' : ''}>Full-Time</option>
+                    <option value="Part-Time"${data.commitment === 'Part-Time' ? ' selected' : ''}>Part-Time</option>
+                    <option value="Freelance"${data.commitment === 'Freelance' ? ' selected' : ''}>Freelance</option>
+                    <option value="Contractor"${data.commitment === 'Contractor' ? ' selected' : ''}>Contractor</option>
+                </select>
+            </div>
+            <div class="form-group">
                 <label>Description *</label>
                 <textarea name="description" rows="4" required>${escapeHtml(data.description || '')}</textarea>
             </div>
@@ -73,6 +83,7 @@
             company: form.querySelector('[name="company"]').value,
             start_date: form.querySelector('[name="start_date"]').value,
             end_date: form.querySelector('[name="end_date"]').value || null,
+            commitment: form.querySelector('[name="commitment"]').value || null,
             description: form.querySelector('[name="description"]').value,
             skills: getTagValues(form.querySelector('.tag-input-wrapper')),
         };

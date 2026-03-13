@@ -6,10 +6,14 @@
     const projCheckboxes = document.getElementById('project-checkboxes');
 
     // Editable results DOM refs
-    const editableResultsDiv = document.getElementById('editable-results');
     const resultObjectiveSlot = document.getElementById('result-objective');
     const resultExperiencesSlot = document.getElementById('result-experiences');
     const resultProjectsSlot = document.getElementById('result-projects');
+
+    // View preview button
+    const viewPreviewBtnContainer = document.getElementById('view-preview-btn-container');
+    const viewPreviewBtn = document.getElementById('view-preview-btn');
+    const previewEmpty = document.getElementById('preview-empty');
 
     let experiences = [];
     let projects = [];
@@ -161,7 +165,7 @@
         resultsContent.innerHTML = '';
         resultsDiv.classList.remove('hidden');
         resetEditableResults();
-        editableResultsDiv.classList.remove('hidden');
+        viewPreviewBtnContainer.classList.add('hidden');
         generateBtn.disabled = true;
 
         try {
@@ -181,7 +185,6 @@
                 stepNum++;
 
                 populateEditableItems('experiences', expRanked, expBullets);
-                renderEditableSection('experiences');
             }
 
             // Project group
@@ -194,22 +197,32 @@
                 stepNum++;
 
                 populateEditableItems('projects', projRanked, projBullets);
-                renderEditableSection('projects');
             }
 
             // Objective
             await runObjective(jobAnalysis, allBullets, selectedExpIds, stepNum);
             stepNum++;
-            renderEditableObjective();
 
             // ATS check
             await runAtsCheck(jobAnalysis, allBullets, stepNum);
+
+            // Show view-preview button
+            viewPreviewBtnContainer.classList.remove('hidden');
 
         } catch (err) {
             // Pipeline halted — error already shown in the failing step
         } finally {
             generateBtn.disabled = false;
         }
+    });
+
+    // View in Preview — switch to preview tab
+    viewPreviewBtn.addEventListener('click', () => {
+        if (previewEmpty) previewEmpty.classList.add('hidden');
+        renderEditableObjective();
+        if (editableResults.experiences.length) renderEditableSection('experiences');
+        if (editableResults.projects.length) renderEditableSection('projects');
+        document.querySelector('.tab[data-tab="preview"]').click();
     });
 
     // --- Analyze JD ---

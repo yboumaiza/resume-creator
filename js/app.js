@@ -12,7 +12,9 @@ async function api(route, method = 'GET', body = null) {
     const res = await fetch(url, options);
     const data = await res.json();
     if (!res.ok) {
-        throw new Error(data.error || 'Request failed');
+        const err = new Error(data.error || 'Request failed');
+        err.detail = data.error_detail || null;
+        throw err;
     }
     return data;
 }

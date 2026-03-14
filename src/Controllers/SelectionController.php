@@ -4,19 +4,31 @@ class SelectionController
 {
     private Experience $experienceModel;
     private Project $projectModel;
-    private OllamaService $ollama;
+    private AiServiceInterface $ai;
     private PromptBuilder $prompts;
+    private ?array $requestData = null;
 
     public function __construct()
     {
         $this->experienceModel = new Experience();
         $this->projectModel = new Project();
-        $this->ollama = new OllamaService();
         $this->prompts = new PromptBuilder();
     }
 
     public function generate(): void
     {
+        $this->requestData = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $provider = $this->requestData['provider']
+            ?? Config::get('ai.default_provider', 'ollama');
+
+        try {
+            $this->ai = AiServiceFactory::create($provider);
+        } catch (AiException $e) {
+            $this->respondAiError($e);
+            return;
+        }
+
         $step = $_GET['step'] ?? '';
 
         match ($step) {
@@ -30,9 +42,15 @@ class SelectionController
         };
     }
 
+    public function providers(): void
+    {
+        $providers = AiServiceFactory::getAvailableProviders();
+        echo json_encode(['success' => true, 'providers' => $providers]);
+    }
+
     private function analyzeJd(): void
     {
-        $data = json_decode(file_get_contents('php://input'), true);
+        $data = $this->requestData;
 
         if (empty($data['job_description'])) {
             $this->respondError(400, 'Missing job_description');
@@ -42,16 +60,16 @@ class SelectionController
         $prompt = $this->prompts->analyzeJd($data['job_description']);
 
         try {
-            $result = $this->ollama->generate($prompt);
+            $result = $this->ai->generate($prompt);
             $this->respondSuccess(['job_analysis' => $result]);
-        } catch (RuntimeException $e) {
-            $this->respondError(502, $e->getMessage());
+        } catch (AiException $e) {
+            $this->respondAiError($e);
         }
     }
 
     private function filterSkills(): void
     {
-        $data = json_decode(file_get_contents('php://input'), true);
+        $data = $this->requestData;
 
         if (empty($data['job_analysis']) || empty($data['item_type']) || !isset($data['item_id'])) {
             $this->respondError(400, 'Missing job_analysis, item_type, or item_id');
@@ -98,21 +116,21 @@ class SelectionController
         );
 
         try {
-            $result = $this->ollama->generate($prompt);
+            $result = $this->ai->generate($prompt);
             $this->respondSuccess([
                 'item_key' => $itemKey,
                 'item' => $item,
                 'relevant_skills' => $result['relevant_skills'] ?? [],
                 'relevance_score' => (int) ($result['relevance_score'] ?? 0),
             ]);
-        } catch (RuntimeException $e) {
-            $this->respondError(502, $e->getMessage());
+        } catch (AiException $e) {
+            $this->respondAiError($e);
         }
     }
 
     private function sortSkills(): void
     {
-        $data = json_decode(file_get_contents('php://input'), true);
+        $data = $this->requestData;
 
         if (empty($data['job_analysis']) || !isset($data['item_key']) || !isset($data['relevant_skills'])) {
             $this->respondError(400, 'Missing job_analysis, item_key, or relevant_skills');
@@ -132,19 +150,19 @@ class SelectionController
         $prompt = $this->prompts->sortSkills($data['job_analysis'], $relevantSkills);
 
         try {
-            $result = $this->ollama->generate($prompt);
+            $result = $this->ai->generate($prompt);
             $this->respondSuccess([
                 'item_key' => $data['item_key'],
                 'sorted_skills' => $result['sorted_skills'] ?? $relevantSkills,
             ]);
-        } catch (RuntimeException $e) {
-            $this->respondError(502, $e->getMessage());
+        } catch (AiException $e) {
+            $this->respondAiError($e);
         }
     }
 
     private function generateBullets(): void
     {
-        $data = json_decode(file_get_contents('php://input'), true);
+        $data = $this->requestData;
 
         if (empty($data['job_analysis']) || empty($data['item']) || empty($data['item_type'])) {
             $this->respondError(400, 'Missing job_analysis, item, or item_type');
@@ -186,19 +204,19 @@ class SelectionController
         }
 
         try {
-            $result = $this->ollama->generate($prompt);
+            $result = $this->ai->generate($prompt);
             $this->respondSuccess([
                 'item_key' => $itemKey,
                 'bullets' => $result['bullets'] ?? [],
             ]);
-        } catch (RuntimeException $e) {
-            $this->respondError(502, $e->getMessage());
+        } catch (AiException $e) {
+            $this->respondAiError($e);
         }
     }
 
     private function generateObjective(): void
     {
-        $data = json_decode(file_get_contents('php://input'), true);
+        $data = $this->requestData;
 
         if (empty($data['job_analysis']) || empty($data['all_bullets'])) {
             $this->respondError(400, 'Missing job_analysis or all_bullets');
@@ -220,19 +238,19 @@ class SelectionController
         );
 
         try {
-            $result = $this->ollama->generate($prompt);
+            $result = $this->ai->generate($prompt);
             $this->respondSuccess([
                 'objective' => $result['objective'] ?? '',
                 'years_of_experience' => $yearsOfExperience,
             ]);
-        } catch (RuntimeException $e) {
-            $this->respondError(502, $e->getMessage());
+        } catch (AiException $e) {
+            $this->respondAiError($e);
         }
     }
 
     private function atsCheck(): void
     {
-        $data = json_decode(file_get_contents('php://input'), true);
+        $data = $this->requestData;
 
         if (empty($data['job_analysis']) || empty($data['all_bullets']) || !isset($data['objective'])) {
             $this->respondError(400, 'Missing job_analysis, all_bullets, or objective');
@@ -246,10 +264,10 @@ class SelectionController
         );
 
         try {
-            $result = $this->ollama->generate($prompt);
+            $result = $this->ai->generate($prompt);
             $this->respondSuccess(['ats_result' => $result]);
-        } catch (RuntimeException $e) {
-            $this->respondError(502, $e->getMessage());
+        } catch (AiException $e) {
+            $this->respondAiError($e);
         }
     }
 
@@ -274,5 +292,14 @@ class SelectionController
     {
         http_response_code($code);
         echo json_encode(['error' => $message]);
+    }
+
+    private function respondAiError(AiException $e): void
+    {
+        http_response_code(502);
+        echo json_encode([
+            'error' => $e->getMessage(),
+            'error_detail' => $e->getDetail(),
+        ]);
     }
 }

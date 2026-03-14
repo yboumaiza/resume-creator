@@ -1,6 +1,6 @@
 <?php
 
-class OllamaService
+class OllamaService implements AiServiceInterface
 {
     private string $baseUrl;
     private string $model;
@@ -36,22 +36,52 @@ class OllamaService
         $error = curl_error($ch);
         curl_close($ch);
 
+        $endpoint = $this->baseUrl . '/api/generate';
+
         if ($response === false) {
-            throw new RuntimeException('Ollama request failed: ' . $error);
+            throw new AiException('Ollama request failed: ' . $error, [
+                'type' => 'connection_error',
+                'provider' => 'ollama',
+                'model' => $this->model,
+                'http_code' => null,
+                'raw_response' => null,
+                'endpoint' => $endpoint,
+            ]);
         }
 
         if ($httpCode !== 200) {
-            throw new RuntimeException('Ollama returned HTTP ' . $httpCode . ': ' . $response);
+            throw new AiException('Ollama returned HTTP ' . $httpCode . ': ' . $response, [
+                'type' => 'http_error',
+                'provider' => 'ollama',
+                'model' => $this->model,
+                'http_code' => $httpCode,
+                'raw_response' => $response,
+                'endpoint' => $endpoint,
+            ]);
         }
 
         $decoded = json_decode($response, true);
         if (!$decoded || !isset($decoded['response'])) {
-            throw new RuntimeException('Invalid Ollama response format');
+            throw new AiException('Invalid Ollama response format', [
+                'type' => 'format_error',
+                'provider' => 'ollama',
+                'model' => $this->model,
+                'http_code' => $httpCode,
+                'raw_response' => $response,
+                'endpoint' => $endpoint,
+            ]);
         }
 
         $result = json_decode($decoded['response'], true);
         if ($result === null) {
-            throw new RuntimeException('Ollama did not return valid JSON. Raw: ' . $decoded['response']);
+            throw new AiException('Ollama did not return valid JSON', [
+                'type' => 'invalid_json',
+                'provider' => 'ollama',
+                'model' => $this->model,
+                'http_code' => $httpCode,
+                'raw_response' => $decoded['response'],
+                'endpoint' => $endpoint,
+            ]);
         }
 
         return $result;

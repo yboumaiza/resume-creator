@@ -12,6 +12,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $base = dirname(__DIR__);
 
+require_once $base . '/src/Env.php';
+Env::load($base . '/.env');
+
 require_once $base . '/src/Config.php';
 Config::load($base . '/config.php');
 
@@ -23,7 +26,13 @@ require_once $base . '/src/Models/Experience.php';
 require_once $base . '/src/Models/Project.php';
 require_once $base . '/src/Models/Testimonial.php';
 
+require_once $base . '/src/Exceptions/AiException.php';
+require_once $base . '/src/Services/AiServiceInterface.php';
 require_once $base . '/src/Services/OllamaService.php';
+require_once $base . '/src/Services/OpenAiService.php';
+require_once $base . '/src/Services/AnthropicService.php';
+require_once $base . '/src/Services/GeminiService.php';
+require_once $base . '/src/Services/AiServiceFactory.php';
 require_once $base . '/src/Services/PromptBuilder.php';
 require_once $base . '/src/Services/LatexBuilder.php';
 require_once $base . '/src/Services/PdfCompiler.php';
@@ -64,6 +73,7 @@ $router->register('PUT', 'testimonials', [TestimonialController::class, 'update'
 $router->register('DELETE', 'testimonials', [TestimonialController::class, 'destroy']);
 
 $router->register('POST', 'selection', [SelectionController::class, 'generate']);
+$router->register('GET', 'providers', [SelectionController::class, 'providers']);
 $router->register('POST', 'export-pdf', [PdfController::class, 'generate']);
 
 $router->dispatch($method, $route);

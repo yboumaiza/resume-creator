@@ -314,6 +314,38 @@ header h1 {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
+/* Provider selector */
+.provider-selector {
+    margin: 16px 0;
+}
+
+.provider-selector label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 6px;
+}
+
+.provider-selector select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    font-family: inherit;
+    background: var(--surface);
+}
+
+.provider-selector select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.provider-selector select option:disabled {
+    color: var(--text-muted);
+}
+
 /* Selection page */
 .selection-form label {
     display: block;
@@ -546,6 +578,93 @@ header h1 {
     padding: 8px;
     background: #fef2f2;
     border-radius: 4px;
+}
+
+/* Structured error panel */
+.step-error-panel {
+    border-left: 3px solid var(--danger);
+    background: #fef2f2;
+    border-radius: 0 4px 4px 0;
+    padding: 12px;
+    font-size: 0.85rem;
+}
+
+.error-type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+}
+
+.error-type-badge.error-type-connection_error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.error-type-badge.error-type-http_error {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.error-type-badge.error-type-invalid_json {
+    background: #fef9c3;
+    color: #854d0e;
+}
+
+.error-type-badge.error-type-format_error {
+    background: #fef9c3;
+    color: #854d0e;
+}
+
+.error-message {
+    color: var(--danger);
+    margin-bottom: 8px;
+    word-break: break-word;
+}
+
+.error-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.error-meta:empty {
+    display: none;
+}
+
+.error-raw-details {
+    margin-top: 6px;
+}
+
+.error-raw-details summary {
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    user-select: none;
+}
+
+.error-raw-details summary:hover {
+    color: var(--text);
+}
+
+.error-raw-response {
+    margin-top: 6px;
+    padding: 8px;
+    background: #1e293b;
+    color: #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    max-height: 200px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
 }
 
 /* Analysis rendering */

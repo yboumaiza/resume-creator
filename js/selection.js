@@ -4,6 +4,7 @@
     const resultsContent = document.getElementById('results-content');
     const expCheckboxes = document.getElementById('experience-checkboxes');
     const projCheckboxes = document.getElementById('project-checkboxes');
+    const providerSelect = document.getElementById('ai-provider');
 
     // Editable results DOM refs
     const resultObjectiveSlot = document.getElementById('result-objective');
@@ -54,6 +55,42 @@
         }));
     }
 
+    // --- Provider loading ---
+
+    async function loadProviders() {
+        try {
+            const result = await api('providers');
+            const providers = result.providers || [];
+            providerSelect.innerHTML = '';
+
+            let hasSelected = false;
+            providers.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p.id;
+                option.textContent = p.name + (p.ready ? '' : ' (not configured)');
+                option.disabled = !p.ready;
+                if (p.ready && !hasSelected) {
+                    option.selected = true;
+                    hasSelected = true;
+                }
+                providerSelect.appendChild(option);
+            });
+
+            if (!hasSelected) {
+                providerSelect.innerHTML = '<option value="" disabled selected>No providers available</option>';
+            }
+        } catch (err) {
+            providerSelect.innerHTML = '<option value="" disabled selected>Failed to load</option>';
+        }
+    }
+
+    function selectionApi(step, body = {}) {
+        return api('selection&step=' + step, 'POST', {
+            ...body,
+            provider: providerSelect.value,
+        });
+    }
+
     // --- Checkbox loading ---
 
     window.loadSelectionCheckboxes = async function () {
@@ -62,6 +99,7 @@
             return;
         }
         try {
+            loadProviders();
             [experiences, projects] = await Promise.all([
                 api('experiences'),
                 api('projects'),
@@ -131,7 +169,7 @@
         }
     }
 
-    function failStep(stepEl, message) {
+    function failStep(stepEl, message, detail = null) {
         const header = stepEl.querySelector('.step-header');
         header.querySelector('.spinner-sm')?.remove();
         const existing = header.querySelector('.step-check');
@@ -142,7 +180,42 @@
         header.prepend(icon);
         header.querySelector('.step-status-text').textContent = 'Failed';
         const body = stepEl.querySelector('.step-body');
-        body.innerHTML += `<div class="step-error">${escapeHtml(message)}</div>`;
+
+        if (detail) {
+            const typeLabels = {
+                connection_error: 'Connection Error',
+                http_error: 'HTTP Error',
+                invalid_json: 'Invalid JSON',
+                format_error: 'Format Error',
+            };
+            const label = typeLabels[detail.type] || detail.type || 'Error';
+
+            let metaHtml = '';
+            if (detail.provider) metaHtml += `<span>Provider: ${escapeHtml(detail.provider)}</span>`;
+            if (detail.model) metaHtml += `<span>Model: ${escapeHtml(detail.model)}</span>`;
+            if (detail.http_code) metaHtml += `<span>HTTP ${detail.http_code}</span>`;
+            if (detail.endpoint) metaHtml += `<span>${escapeHtml(detail.endpoint)}</span>`;
+
+            let rawHtml = '';
+            if (detail.raw_response) {
+                rawHtml = `
+                    <details class="error-raw-details">
+                        <summary>Raw Response</summary>
+                        <pre class="error-raw-response">${escapeHtml(detail.raw_response)}</pre>
+                    </details>`;
+            }
+
+            body.innerHTML += `
+                <div class="step-error-panel">
+                    <span class="error-type-badge error-type-${escapeHtml(detail.type || '')}">${escapeHtml(label)}</span>
+                    <div class="error-message">${escapeHtml(message)}</div>
+                    <div class="error-meta">${metaHtml}</div>
+                    ${rawHtml}
+                </div>`;
+        } else {
+            body.innerHTML += `<div class="step-error">${escapeHtml(message)}</div>`;
+        }
+
         body.classList.add('open');
     }
 
@@ -232,14 +305,14 @@
     async function runAnalyzeJd(jobDescription) {
         const stepEl = appendStep('Step 1: Analyzing job description...');
         try {
-            const result = await api('selection&step=analyze-jd', 'POST', {
+            const result = await selectionApi('analyze-jd', {
                 job_description: jobDescription,
             });
             renderJobAnalysis(getStepBody(stepEl), result.job_analysis);
             completeStep(stepEl);
             return result.job_analysis;
         } catch (err) {
-            failStep(stepEl, err.message);
+            failStep(stepEl, err.message, err.detail);
             throw err;
         }
     }
@@ -286,7 +359,7 @@
                 const id = itemIds[i];
                 updateStepStatus(stepEl, `Filtering ${i + 1}/${total}...`);
 
-                const filterResult = await api('selection&step=filter-skills', 'POST', {
+                const filterResult = await selectionApi('filter-skills', {
                     job_analysis: jobAnalysis,
                     item_type: typeName,
                     item_id: id,
@@ -296,7 +369,7 @@
 
                 let sortedSkills = filterResult.relevant_skills || [];
                 if (sortedSkills.length > 1) {
-                    const sortResult = await api('selection&step=sort-skills', 'POST', {
+                    const sortResult = await selectionApi('sort-skills', {
                         job_analysis: jobAnalysis,
                         item_key: filterResult.item_key,
                         relevant_skills: sortedSkills,
@@ -320,7 +393,7 @@
             completeStep(stepEl, false);
             return items;
         } catch (err) {
-            failStep(stepEl, err.message);
+            failStep(stepEl, err.message, err.detail);
             throw err;
         }
     }
@@ -339,7 +412,7 @@
                 const item = rankedItems[i];
                 updateStepStatus(stepEl, `Item ${i + 1}/${rankedItems.length}...`);
 
-                const result = await api('selection&step=bullets', 'POST', {
+                const result = await selectionApi('bullets', {
                     job_analysis: jobAnalysis,
                     item_key: item.key,
                     item: item.item,
@@ -357,7 +430,7 @@
             completeStep(stepEl, false);
             return newBullets;
         } catch (err) {
-            failStep(stepEl, err.message);
+            failStep(stepEl, err.message, err.detail);
             throw err;
         }
     }
@@ -370,7 +443,7 @@
         const stepEl = appendStep(`Step ${stepNum}: Generating objective...`);
 
         try {
-            const result = await api('selection&step=objective', 'POST', {
+            const result = await selectionApi('objective', {
                 job_analysis: jobAnalysis,
                 all_bullets: allBullets,
                 experience_ids: experienceIds,
@@ -380,7 +453,7 @@
             editableResults.objective = generatedObjective;
             completeStep(stepEl, false);
         } catch (err) {
-            failStep(stepEl, err.message);
+            failStep(stepEl, err.message, err.detail);
             throw err;
         }
     }
@@ -503,7 +576,7 @@
                         allBullets[entry.key] = entry.bullets;
                     }
                 }
-                const result = await api('selection&step=objective', 'POST', {
+                const result = await selectionApi('objective', {
                     job_analysis: cachedJobAnalysis,
                     all_bullets: allBullets,
                     experience_ids: cachedSelectedExpIds,
@@ -616,7 +689,7 @@
 
         try {
             // Step 1: Filter skills
-            const filterResult = await api('selection&step=filter-skills', 'POST', {
+            const filterResult = await selectionApi('filter-skills', {
                 job_analysis: cachedJobAnalysis,
                 item_type: typeName,
                 item_id: itemId,
@@ -625,7 +698,7 @@
             // Step 2: Sort skills
             let sortedSkills = filterResult.relevant_skills || [];
             if (sortedSkills.length > 1) {
-                const sortResult = await api('selection&step=sort-skills', 'POST', {
+                const sortResult = await selectionApi('sort-skills', {
                     job_analysis: cachedJobAnalysis,
                     item_key: filterResult.item_key,
                     relevant_skills: sortedSkills,
@@ -643,7 +716,7 @@
                 }
             }
 
-            const bulletResult = await api('selection&step=bullets', 'POST', {
+            const bulletResult = await selectionApi('bullets', {
                 job_analysis: cachedJobAnalysis,
                 item_key: entry.key,
                 item: filterResult.item,

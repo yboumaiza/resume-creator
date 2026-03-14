@@ -69,7 +69,7 @@ PROMPT;
         $skillsList = json_encode($relevantSkills);
 
         return <<<PROMPT
-You are a resume optimization expert. Given a job analysis and a list of relevant skills, sort them from most to least important for the target role.
+You are a resume optimization expert. Given a job analysis and a list of relevant skills, sort them from most to least important for the target role, and classify each skill by type.
 
 JOB ANALYSIS:
 {$analysisJson}
@@ -79,7 +79,11 @@ SKILLS TO SORT:
 
 Respond with a JSON object:
 {
-  "sorted_skills": ["most important skill first", "second most important", "..."]
+  "sorted_skills": [
+    { "name": "Python", "type": "language" },
+    { "name": "Docker", "type": "tool" },
+    { "name": "Agile", "type": "skill" }
+  ]
 }
 
 Rules:
@@ -87,15 +91,20 @@ Rules:
 - Skills matching required_skills should rank higher than those matching preferred_skills.
 - Skills directly mentioned in key_responsibilities rank highest.
 - If two skills are equally relevant, maintain their original order.
+- Classify each skill into one of three types:
+  - "language" = Programming languages, query languages, markup languages (e.g., Python, JavaScript, SQL, HTML, Go, TypeScript, CSS)
+  - "tool" = Frameworks, libraries, platforms, infrastructure tools, databases, cloud services (e.g., React, Docker, AWS, Git, Kubernetes, PostgreSQL, Node.js)
+  - "skill" = Methodologies, practices, soft skills, processes (e.g., Agile, Scrum, CI/CD, TDD, Leadership, REST API design)
+- When unsure about a skill's type, default to "tool".
 
 Respond ONLY with the JSON object, no additional text.
 PROMPT;
     }
 
-    public function experienceBullets(array $jobAnalysis, string $itemLabel, string $itemDescription, array $sortedSkills, array $previousBullets): string
+    public function experienceBullets(array $jobAnalysis, string $itemLabel, string $itemDescription, array $sortedSkills, array $previousBullets, array $classifiedSkills = []): string
     {
         $analysisJson = json_encode($jobAnalysis, JSON_PRETTY_PRINT);
-        $skillsList = implode(', ', $sortedSkills);
+        $skillsBlock = $this->formatClassifiedSkills($classifiedSkills, $sortedSkills);
         $previousContext = $this->buildPreviousContext($previousBullets);
 
         return <<<PROMPT
@@ -105,7 +114,7 @@ JOB ANALYSIS:
 {$analysisJson}
 
 WORK EXPERIENCE TO WRITE BULLETS FOR: {$itemLabel}
-Relevant Skills to highlight: [{$skillsList}]
+{$skillsBlock}
 Full Description: {$itemDescription}
 {$previousContext}
 Respond with a JSON object:
@@ -114,7 +123,7 @@ Respond with a JSON object:
 }
 
 Rules:
-- Write 3-5 bullet points. Fewer only if the item genuinely lacks relevant content.
+- Write exactly 3 bullet points.
 - Each bullet MUST start with a strong action verb (Built, Designed, Led, Implemented, Optimized, Developed, Architected, etc.).
 - Focus on role-specific achievements, impact on the team or organization, and professional responsibilities.
 - Quantify impact where the description supports it (team size, percentage improvements, revenue/cost figures). Do NOT fabricate numbers or metrics.
@@ -123,15 +132,20 @@ Rules:
 - Each bullet should be 1-2 lines. Be concise and specific.
 - Use ONLY information from the description provided. Do NOT invent accomplishments or facts.
 - Do NOT repeat themes, accomplishments, or phrasing from the PREVIOUSLY GENERATED BULLETS above. Each item must contribute unique value to the resume.
+- Phrasing rules for skill types:
+  - Programming Languages: use with "in" or "with" (e.g., "Developed services in Python", "Built features with JavaScript")
+  - Tools & Frameworks: use with "using" or "leveraging" (e.g., "Containerized deployments using Docker", "Built UI components using React")
+  - Professional Skills: reference as practices or methodologies (e.g., "Applied Agile methodology to streamline sprints", "Adopted TDD practices")
+  - NEVER prefix a skill with its category label in the bullet text (do NOT write "Programming Language: Python" or "Tool: Docker")
 
 Respond ONLY with the JSON object, no additional text.
 PROMPT;
     }
 
-    public function projectBullets(array $jobAnalysis, string $itemLabel, string $itemDescription, array $sortedSkills, array $previousBullets): string
+    public function projectBullets(array $jobAnalysis, string $itemLabel, string $itemDescription, array $sortedSkills, array $previousBullets, array $classifiedSkills = []): string
     {
         $analysisJson = json_encode($jobAnalysis, JSON_PRETTY_PRINT);
-        $skillsList = implode(', ', $sortedSkills);
+        $skillsBlock = $this->formatClassifiedSkills($classifiedSkills, $sortedSkills);
         $previousContext = $this->buildPreviousContext($previousBullets);
 
         return <<<PROMPT
@@ -141,7 +155,7 @@ JOB ANALYSIS:
 {$analysisJson}
 
 PROJECT TO WRITE BULLETS FOR: {$itemLabel}
-Relevant Skills to highlight: [{$skillsList}]
+{$skillsBlock}
 Full Description: {$itemDescription}
 {$previousContext}
 Respond with a JSON object:
@@ -150,7 +164,7 @@ Respond with a JSON object:
 }
 
 Rules:
-- Write 3-5 bullet points. Fewer only if the project genuinely lacks relevant content.
+- Write exactly 3 bullet points.
 - Each bullet MUST start with a strong action verb (Built, Designed, Developed, Implemented, Engineered, Architected, etc.).
 - Focus on what was built, the technical implementation approach, technologies used, and tangible outcomes.
 - Emphasize technical decisions, architecture choices, and the problem being solved.
@@ -159,9 +173,66 @@ Rules:
 - Each bullet should be 1-2 lines. Be concise and specific.
 - Use ONLY information from the description provided. Do NOT invent accomplishments or facts.
 - Do NOT repeat themes, accomplishments, or phrasing from the PREVIOUSLY GENERATED BULLETS above. Each item must contribute unique value to the resume.
+- Phrasing rules for skill types:
+  - Programming Languages: use with "in" or "with" (e.g., "Developed services in Python", "Built features with JavaScript")
+  - Tools & Frameworks: use with "using" or "leveraging" (e.g., "Containerized deployments using Docker", "Built UI components using React")
+  - Professional Skills: reference as practices or methodologies (e.g., "Applied Agile methodology to streamline sprints", "Adopted TDD practices")
+  - NEVER prefix a skill with its category label in the bullet text (do NOT write "Programming Language: Python" or "Tool: Docker")
 
 Respond ONLY with the JSON object, no additional text.
 PROMPT;
+    }
+
+    private function buildTestimonialsContext(array $testimonials): string
+    {
+        if (empty($testimonials)) {
+            return '';
+        }
+
+        $context = "\nCLIENT/COLLEAGUE TESTIMONIALS:\n";
+        foreach ($testimonials as $t) {
+            $who = $t['name'] ?? 'Unknown';
+            if (!empty($t['position'])) {
+                $who .= ', ' . $t['position'];
+            }
+            if (!empty($t['company'])) {
+                $who .= ' at ' . $t['company'];
+            }
+            $message = $t['message'] ?? '';
+            $context .= "- {$who}: \"{$message}\"\n";
+        }
+        return $context;
+    }
+
+    private function formatClassifiedSkills(array $classifiedSkills, array $flatSkills): string
+    {
+        if (empty($classifiedSkills) || !isset($classifiedSkills[0]['type'])) {
+            $skillsList = implode(', ', $flatSkills);
+            return "Relevant Skills to highlight: [{$skillsList}]";
+        }
+
+        $groups = [
+            'language' => ['label' => 'Programming Languages', 'items' => []],
+            'tool'     => ['label' => 'Tools & Frameworks', 'items' => []],
+            'skill'    => ['label' => 'Professional Skills', 'items' => []],
+        ];
+
+        foreach ($classifiedSkills as $entry) {
+            $type = $entry['type'] ?? 'tool';
+            if (!isset($groups[$type])) {
+                $type = 'tool';
+            }
+            $groups[$type]['items'][] = $entry['name'];
+        }
+
+        $lines = ["Relevant Skills to highlight:"];
+        foreach ($groups as $group) {
+            if (!empty($group['items'])) {
+                $lines[] = "  {$group['label']}: " . implode(', ', $group['items']);
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     private function buildPreviousContext(array $previousBullets): string
@@ -180,7 +251,7 @@ PROMPT;
         return $context;
     }
 
-    public function objective(array $jobAnalysis, array $allBullets, int $yearsOfExperience): string
+    public function objective(array $jobAnalysis, array $allBullets, int $yearsOfExperience, array $testimonials = []): string
     {
         $analysisJson = json_encode($jobAnalysis, JSON_PRETTY_PRINT);
 
@@ -191,6 +262,8 @@ PROMPT;
                 $bulletsContext .= "- {$bullet}\n";
             }
         }
+
+        $testimonialsContext = $this->buildTestimonialsContext($testimonials);
 
         $employmentType = $jobAnalysis['employment_type'] ?? 'Full-time';
 
@@ -204,7 +277,7 @@ CANDIDATE'S GENERATED BULLETS:
 {$bulletsContext}
 
 CANDIDATE'S TOTAL YEARS OF EXPERIENCE: {$yearsOfExperience}
-
+{$testimonialsContext}
 Respond with a JSON object:
 {
   "objective": "the objective statement"
@@ -217,6 +290,7 @@ Rules:
 - {Y} = the primary domain/field of expertise, inferred from the bullets
 - {employment_type} = "{$employmentType}" (from the job analysis)
 - {Z} = the target role type from the job description
+- If testimonials are provided, weave in a brief trust signal (e.g., "trusted by leaders at {Company}" or "recognized by {Position} at {Company}"). Pick the most impressive testimonial by seniority or company prestige.
 - Keep it to ONE sentence only. No additional text.
 - Do NOT start with "I" — write in implied first person.
 

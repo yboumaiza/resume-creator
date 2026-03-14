@@ -4,6 +4,7 @@ class SelectionController
 {
     private Experience $experienceModel;
     private Project $projectModel;
+    private Testimonial $testimonialModel;
     private AiServiceInterface $ai;
     private PromptBuilder $prompts;
     private ?array $requestData = null;
@@ -12,6 +13,7 @@ class SelectionController
     {
         $this->experienceModel = new Experience();
         $this->projectModel = new Project();
+        $this->testimonialModel = new Testimonial();
         $this->prompts = new PromptBuilder();
     }
 
@@ -140,9 +142,11 @@ class SelectionController
         $relevantSkills = $data['relevant_skills'];
 
         if (count($relevantSkills) <= 1) {
+            $classifiedSkills = array_map(fn($s) => ['name' => $s, 'type' => 'tool'], $relevantSkills);
             $this->respondSuccess([
                 'item_key' => $data['item_key'],
                 'sorted_skills' => $relevantSkills,
+                'classified_skills' => $classifiedSkills,
             ]);
             return;
         }
@@ -151,9 +155,33 @@ class SelectionController
 
         try {
             $result = $this->ai->generate($prompt);
+            $rawSorted = $result['sorted_skills'] ?? [];
+
+            $sortedNames = [];
+            $classifiedSkills = [];
+
+            foreach ($rawSorted as $entry) {
+                if (is_array($entry) && isset($entry['name'])) {
+                    $sortedNames[] = $entry['name'];
+                    $classifiedSkills[] = [
+                        'name' => $entry['name'],
+                        'type' => in_array($entry['type'] ?? '', ['language', 'tool', 'skill']) ? $entry['type'] : 'tool',
+                    ];
+                } elseif (is_string($entry)) {
+                    $sortedNames[] = $entry;
+                    $classifiedSkills[] = ['name' => $entry, 'type' => 'tool'];
+                }
+            }
+
+            if (empty($sortedNames)) {
+                $sortedNames = $relevantSkills;
+                $classifiedSkills = array_map(fn($s) => ['name' => $s, 'type' => 'tool'], $relevantSkills);
+            }
+
             $this->respondSuccess([
                 'item_key' => $data['item_key'],
-                'sorted_skills' => $result['sorted_skills'] ?? $relevantSkills,
+                'sorted_skills' => $sortedNames,
+                'classified_skills' => $classifiedSkills,
             ]);
         } catch (AiException $e) {
             $this->respondAiError($e);
@@ -172,6 +200,7 @@ class SelectionController
         $item = $data['item'];
         $itemType = $data['item_type'];
         $sortedSkills = $data['sorted_skills'] ?? [];
+        $classifiedSkills = $data['classified_skills'] ?? [];
         $previousBullets = $data['previous_bullets'] ?? [];
         $itemKey = $data['item_key'] ?? '';
 
@@ -188,7 +217,8 @@ class SelectionController
                 $itemLabel,
                 $item['description'] ?? '',
                 $sortedSkills,
-                $previousBullets
+                $previousBullets,
+                $classifiedSkills
             );
         } elseif ($itemType === 'project') {
             $prompt = $this->prompts->projectBullets(
@@ -196,7 +226,8 @@ class SelectionController
                 $itemLabel,
                 $item['description'] ?? '',
                 $sortedSkills,
-                $previousBullets
+                $previousBullets,
+                $classifiedSkills
             );
         } else {
             $this->respondError(400, 'Invalid item_type: must be "experience" or "project"');
@@ -231,10 +262,13 @@ class SelectionController
             $yearsOfExperience = $this->calculateYearsOfExperience($experiences);
         }
 
+        $testimonials = $this->testimonialModel->getAll();
+
         $prompt = $this->prompts->objective(
             $data['job_analysis'],
             $data['all_bullets'],
-            $yearsOfExperience
+            $yearsOfExperience,
+            $testimonials
         );
 
         try {
@@ -275,6 +309,10 @@ class SelectionController
     {
         $totalMonths = 0;
         foreach ($experiences as $exp) {
+            $commitment = $exp['commitment'] ?? '';
+            if ($commitment === 'Freelance' || $commitment === 'Self-Employed') {
+                continue;
+            }
             $start = new DateTime($exp['start_date']);
             $end = $exp['end_date'] ? new DateTime($exp['end_date']) : new DateTime();
             $diff = $start->diff($end);

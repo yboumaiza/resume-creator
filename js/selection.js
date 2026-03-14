@@ -51,6 +51,7 @@
             type: ri.type,
             relevance_score: ri.relevance_score,
             skills: [...(ri.sorted_skills || [])],
+            classified_skills: [...(ri.classified_skills || [])],
             bullets: [...(bulletsMap[ri.key] || [])],
         }));
     }
@@ -368,6 +369,7 @@
                 updateStepStatus(stepEl, `Sorting ${i + 1}/${total}...`);
 
                 let sortedSkills = filterResult.relevant_skills || [];
+                let classifiedSkills = [];
                 if (sortedSkills.length > 1) {
                     const sortResult = await selectionApi('sort-skills', {
                         job_analysis: jobAnalysis,
@@ -375,6 +377,9 @@
                         relevant_skills: sortedSkills,
                     });
                     sortedSkills = sortResult.sorted_skills || sortedSkills;
+                    classifiedSkills = sortResult.classified_skills || [];
+                } else {
+                    classifiedSkills = sortedSkills.map(s => ({ name: s, type: 'tool' }));
                 }
 
                 items.push({
@@ -383,6 +388,7 @@
                     item: filterResult.item,
                     relevance_score: filterResult.relevance_score,
                     sorted_skills: sortedSkills,
+                    classified_skills: classifiedSkills,
                 });
             }
 
@@ -418,6 +424,7 @@
                     item: item.item,
                     item_type: typeName,
                     sorted_skills: item.sorted_skills,
+                    classified_skills: item.classified_skills || [],
                     previous_bullets: currentBullets,
                 });
 
@@ -697,6 +704,7 @@
 
             // Step 2: Sort skills
             let sortedSkills = filterResult.relevant_skills || [];
+            let classifiedSkills = [];
             if (sortedSkills.length > 1) {
                 const sortResult = await selectionApi('sort-skills', {
                     job_analysis: cachedJobAnalysis,
@@ -704,6 +712,9 @@
                     relevant_skills: sortedSkills,
                 });
                 sortedSkills = sortResult.sorted_skills || sortedSkills;
+                classifiedSkills = sortResult.classified_skills || [];
+            } else {
+                classifiedSkills = sortedSkills.map(s => ({ name: s, type: 'tool' }));
             }
 
             // Step 3: Generate bullets
@@ -722,11 +733,13 @@
                 item: filterResult.item,
                 item_type: typeName,
                 sorted_skills: sortedSkills,
+                classified_skills: classifiedSkills,
                 previous_bullets: previousBullets,
             });
 
             // Update editable state
             editableResults[section][itemIdx].skills = [...sortedSkills];
+            editableResults[section][itemIdx].classified_skills = [...classifiedSkills];
             editableResults[section][itemIdx].bullets = [...(bulletResult.bullets || [])];
             editableResults[section][itemIdx].relevance_score = filterResult.relevance_score;
             editableResults[section][itemIdx].item = filterResult.item;

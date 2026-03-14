@@ -463,6 +463,11 @@ header h1 {
     font-size: 0.875rem;
 }
 
+/* Utility */
+.hidden {
+    display: none;
+}
+
 /* Empty state */
 .empty-state {
     text-align: center;
@@ -792,6 +797,23 @@ header h1 {
     font-weight: 600;
 }
 
+.editable-item-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.item-regenerate,
+.objective-regenerate {
+    white-space: nowrap;
+}
+
+.item-regenerate:disabled,
+.objective-regenerate:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .editable-item-skills,
 .editable-item-bullets {
     margin-bottom: 12px;
@@ -875,6 +897,40 @@ header h1 {
     background: var(--primary);
     color: white;
     border-color: var(--primary);
+}
+
+/* Skill selection options in modal */
+.skill-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.skill-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.skill-option:hover {
+    border-color: var(--primary);
+}
+
+.skill-option input[type="checkbox"] {
+    display: none;
+}
+
+.skill-option:has(input:checked) {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
 }
 
 /* Editable bullets */
@@ -1112,6 +1168,23 @@ header h1 {
 }
 
 .view-preview-container .btn {
+    padding: 12px 32px;
+    font-size: 1rem;
+}
+
+/* Download PDF button */
+.download-pdf-container {
+    text-align: center;
+    margin-top: 24px;
+    padding: 20px 0;
+    border-top: 1px solid var(--border);
+}
+
+.download-pdf-container.hidden {
+    display: none;
+}
+
+.download-pdf-container .btn {
     padding: 12px 32px;
     font-size: 1rem;
 }

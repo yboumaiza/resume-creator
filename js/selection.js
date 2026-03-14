@@ -10,15 +10,17 @@
     const resultExperiencesSlot = document.getElementById('result-experiences');
     const resultProjectsSlot = document.getElementById('result-projects');
 
-    // View preview button
-    const viewPreviewBtnContainer = document.getElementById('view-preview-btn-container');
-    const viewPreviewBtn = document.getElementById('view-preview-btn');
     const previewEmpty = document.getElementById('preview-empty');
+    const downloadPdfBtn = document.getElementById('download-pdf-btn');
+    const downloadPdfContainer = document.getElementById('download-pdf-container');
 
     let experiences = [];
     let projects = [];
 
     // --- Editable state ---
+
+    let cachedJobAnalysis = null;
+    let cachedSelectedExpIds = [];
 
     const editableResults = {
         objective: '',
@@ -30,12 +32,15 @@
         editableResults.objective = '';
         editableResults.experiences = [];
         editableResults.projects = [];
+        cachedJobAnalysis = null;
+        cachedSelectedExpIds = [];
         resultObjectiveSlot.innerHTML = '';
         resultObjectiveSlot.classList.add('hidden');
         resultExperiencesSlot.innerHTML = '';
         resultExperiencesSlot.classList.add('hidden');
         resultProjectsSlot.innerHTML = '';
         resultProjectsSlot.classList.add('hidden');
+        downloadPdfContainer.classList.add('hidden');
     }
 
     function populateEditableItems(section, rankedItems, bulletsMap) {
@@ -52,6 +57,10 @@
     // --- Checkbox loading ---
 
     window.loadSelectionCheckboxes = async function () {
+        // Skip reload if checkboxes already exist (preserves checked state)
+        if (expCheckboxes.children.length > 0 || projCheckboxes.children.length > 0) {
+            return;
+        }
         try {
             [experiences, projects] = await Promise.all([
                 api('experiences'),
@@ -165,12 +174,13 @@
         resultsContent.innerHTML = '';
         resultsDiv.classList.remove('hidden');
         resetEditableResults();
-        viewPreviewBtnContainer.classList.add('hidden');
         generateBtn.disabled = true;
 
         try {
             // Step 1: Analyze JD
             const jobAnalysis = await runAnalyzeJd(jobDescription);
+            cachedJobAnalysis = jobAnalysis;
+            cachedSelectedExpIds = selectedExpIds;
 
             let allBullets = {};
             let stepNum = 2;
@@ -201,28 +211,20 @@
 
             // Objective
             await runObjective(jobAnalysis, allBullets, selectedExpIds, stepNum);
-            stepNum++;
 
-            // ATS check
-            await runAtsCheck(jobAnalysis, allBullets, stepNum);
-
-            // Show view-preview button
-            viewPreviewBtnContainer.classList.remove('hidden');
+            // Render results in Preview tab and switch to it
+            if (previewEmpty) previewEmpty.classList.add('hidden');
+            renderEditableObjective();
+            if (editableResults.experiences.length) renderEditableSection('experiences');
+            if (editableResults.projects.length) renderEditableSection('projects');
+            downloadPdfContainer.classList.remove('hidden');
+            document.querySelector('.tab[data-tab="preview"]').click();
 
         } catch (err) {
             // Pipeline halted — error already shown in the failing step
         } finally {
             generateBtn.disabled = false;
         }
-    });
-
-    // View in Preview — switch to preview tab
-    viewPreviewBtn.addEventListener('click', () => {
-        if (previewEmpty) previewEmpty.classList.add('hidden');
-        renderEditableObjective();
-        if (editableResults.experiences.length) renderEditableSection('experiences');
-        if (editableResults.projects.length) renderEditableSection('projects');
-        document.querySelector('.tab[data-tab="preview"]').click();
     });
 
     // --- Analyze JD ---
@@ -383,63 +385,6 @@
         }
     }
 
-    // --- ATS check ---
-
-    async function runAtsCheck(jobAnalysis, allBullets, stepNum) {
-        const stepEl = appendStep(`Step ${stepNum}: Checking ATS keywords...`);
-
-        try {
-            const result = await api('selection&step=ats-check', 'POST', {
-                job_analysis: jobAnalysis,
-                all_bullets: allBullets,
-                objective: generatedObjective,
-            });
-
-            renderAtsCheck(getStepBody(stepEl), result.ats_result);
-            completeStep(stepEl);
-        } catch (err) {
-            failStep(stepEl, err.message);
-            throw err;
-        }
-    }
-
-    function renderAtsCheck(body, atsResult) {
-        let html = '';
-
-        const pct = atsResult.keyword_coverage_pct || 0;
-        const meterColor = pct >= 80 ? '#16a34a' : pct >= 60 ? '#ca8a04' : '#dc2626';
-        html += `
-            <div class="ats-coverage">
-                <div class="ats-coverage-label">Keyword Coverage: <strong>${pct}%</strong></div>
-                <div class="ats-meter">
-                    <div class="ats-meter-fill" style="width:${pct}%;background:${meterColor}"></div>
-                </div>
-            </div>
-        `;
-
-        if (atsResult.matched_keywords?.length) {
-            html += '<div class="analysis-group"><h5>Matched Keywords</h5><div class="tags">';
-            html += atsResult.matched_keywords.map(k => `<span class="tag tag-matched">${escapeHtml(k)}</span>`).join('');
-            html += '</div></div>';
-        }
-
-        if (atsResult.missing_keywords?.length) {
-            html += '<div class="analysis-group"><h5>Missing Keywords</h5><div class="tags">';
-            html += atsResult.missing_keywords.map(k => `<span class="tag tag-missing">${escapeHtml(k)}</span>`).join('');
-            html += '</div></div>';
-        }
-
-        if (atsResult.suggestions?.length) {
-            html += '<div class="analysis-group"><h5>Suggestions</h5><ul class="ats-suggestions">';
-            for (const s of atsResult.suggestions) {
-                html += `<li><strong>${escapeHtml(s.keyword)}:</strong> ${escapeHtml(s.suggestion)}</li>`;
-            }
-            html += '</ul></div>';
-        }
-
-        body.innerHTML = html;
-    }
-
     // ===== Editable Results Rendering =====
 
     // --- Editable section (experiences or projects) ---
@@ -508,7 +453,10 @@
             <div class="editable-item-card" data-section="${section}" data-item="${idx}">
                 <div class="editable-item-header">
                     <div class="editable-item-title">${title}</div>
-                    <div class="ranked-item-score ${scoreClass}">${score}</div>
+                    <div class="editable-item-header-actions">
+                        <button class="btn btn-sm item-regenerate" data-section="${section}" data-item="${idx}" title="Regenerate">&#8635; Regenerate</button>
+                        <div class="ranked-item-score ${scoreClass}">${score}</div>
+                    </div>
                 </div>
                 <div class="editable-item-skills">
                     <h5>Skills</h5>
@@ -531,6 +479,7 @@
                 <div class="objective-header">
                     <h4>Objective</h4>
                     <div>
+                        <button class="btn btn-sm objective-regenerate">&#8635; Regenerate</button>
                         <button class="btn btn-sm objective-edit">&#9998; Edit</button>
                     </div>
                 </div>
@@ -538,6 +487,36 @@
             </div>
         `;
         resultObjectiveSlot.classList.remove('hidden');
+
+        resultObjectiveSlot.querySelector('.objective-regenerate').addEventListener('click', async (e) => {
+            if (!cachedJobAnalysis) {
+                alert('No job analysis cached. Please run the full generation first.');
+                return;
+            }
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            btn.textContent = 'Regenerating...';
+            try {
+                const allBullets = {};
+                for (const sec of ['experiences', 'projects']) {
+                    for (const entry of editableResults[sec]) {
+                        allBullets[entry.key] = entry.bullets;
+                    }
+                }
+                const result = await api('selection&step=objective', 'POST', {
+                    job_analysis: cachedJobAnalysis,
+                    all_bullets: allBullets,
+                    experience_ids: cachedSelectedExpIds,
+                });
+                editableResults.objective = result.objective || '';
+                generatedObjective = editableResults.objective;
+                renderEditableObjective();
+            } catch (err) {
+                alert('Objective regeneration failed: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = '\u21BB Regenerate';
+            }
+        });
 
         resultObjectiveSlot.querySelector('.objective-edit').addEventListener('click', () => {
             openModal('Edit Objective', `
@@ -612,7 +591,79 @@
                 addBulletModal(section, itemIdx);
                 return;
             }
+
+            // Regenerate item
+            if (btn.classList.contains('item-regenerate')) {
+                const itemIdx = parseInt(btn.dataset.item);
+                regenerateItem(section, itemIdx, btn);
+                return;
+            }
         });
+    }
+
+    async function regenerateItem(section, itemIdx, btn) {
+        if (!cachedJobAnalysis) {
+            alert('No job analysis cached. Please run the full generation first.');
+            return;
+        }
+
+        const entry = editableResults[section][itemIdx];
+        const typeName = entry.type;
+        const itemId = parseInt(entry.key.split('_')[1]);
+
+        btn.disabled = true;
+        btn.textContent = 'Regenerating...';
+
+        try {
+            // Step 1: Filter skills
+            const filterResult = await api('selection&step=filter-skills', 'POST', {
+                job_analysis: cachedJobAnalysis,
+                item_type: typeName,
+                item_id: itemId,
+            });
+
+            // Step 2: Sort skills
+            let sortedSkills = filterResult.relevant_skills || [];
+            if (sortedSkills.length > 1) {
+                const sortResult = await api('selection&step=sort-skills', 'POST', {
+                    job_analysis: cachedJobAnalysis,
+                    item_key: filterResult.item_key,
+                    relevant_skills: sortedSkills,
+                });
+                sortedSkills = sortResult.sorted_skills || sortedSkills;
+            }
+
+            // Step 3: Generate bullets
+            const previousBullets = {};
+            for (const sec of ['experiences', 'projects']) {
+                for (const e of editableResults[sec]) {
+                    if (e.key !== entry.key) {
+                        previousBullets[e.key] = e.bullets;
+                    }
+                }
+            }
+
+            const bulletResult = await api('selection&step=bullets', 'POST', {
+                job_analysis: cachedJobAnalysis,
+                item_key: entry.key,
+                item: filterResult.item,
+                item_type: typeName,
+                sorted_skills: sortedSkills,
+                previous_bullets: previousBullets,
+            });
+
+            // Update editable state
+            editableResults[section][itemIdx].skills = [...sortedSkills];
+            editableResults[section][itemIdx].bullets = [...(bulletResult.bullets || [])];
+            editableResults[section][itemIdx].relevance_score = filterResult.relevance_score;
+            editableResults[section][itemIdx].item = filterResult.item;
+
+            rerenderItem(section, itemIdx);
+        } catch (err) {
+            alert('Regeneration failed: ' + err.message);
+            btn.disabled = false;
+            btn.textContent = '\u21BB Regenerate';
+        }
     }
 
     // --- Mutation functions ---
@@ -660,15 +711,44 @@
     }
 
     function addSkillModal(section, itemIdx) {
-        openModal('Add Skill', `
-            <div class="form-group">
-                <label>Skill</label>
-                <input type="text" name="skill-value" required placeholder="Enter skill name">
-            </div>
-        `, () => {
-            const val = document.querySelector('#modal-form [name="skill-value"]').value.trim();
-            if (val) {
-                editableResults[section][itemIdx].skills.push(val);
+        const entry = editableResults[section][itemIdx];
+        const allSkills = entry.item.skills || [];
+        const currentSkills = entry.skills || [];
+        const currentSkillsLower = currentSkills.map(s => s.toLowerCase());
+        const availableSkills = allSkills.filter(s => !currentSkillsLower.includes(s.toLowerCase()));
+
+        let fieldsHtml = '';
+
+        if (availableSkills.length > 0) {
+            fieldsHtml += '<div class="form-group"><label>Select from existing skills</label><div class="skill-options">';
+            availableSkills.forEach(skill => {
+                fieldsHtml += `<label class="skill-option">
+                    <input type="checkbox" name="skill-select" value="${escapeHtml(skill)}">
+                    <span class="skill-option-label">${escapeHtml(skill)}</span>
+                </label>`;
+            });
+            fieldsHtml += '</div></div>';
+        }
+
+        fieldsHtml += `<div class="form-group">
+            <label>${availableSkills.length > 0 ? 'Or enter a custom skill' : 'Skill'}</label>
+            <input type="text" name="skill-value" placeholder="Enter skill name">
+        </div>`;
+
+        openModal('Add Skill', fieldsHtml, () => {
+            const selectedCheckboxes = Array.from(
+                document.querySelectorAll('#modal-form [name="skill-select"]:checked')
+            ).map(cb => cb.value);
+
+            const customVal = document.querySelector('#modal-form [name="skill-value"]').value.trim();
+
+            const newSkills = [...selectedCheckboxes];
+            if (customVal && !newSkills.includes(customVal)) {
+                newSkills.push(customVal);
+            }
+
+            if (newSkills.length > 0) {
+                editableResults[section][itemIdx].skills.push(...newSkills);
                 rerenderItem(section, itemIdx);
             }
             closeModal();
@@ -722,4 +802,43 @@
             closeModal();
         });
     }
+
+    // --- Download PDF ---
+
+    downloadPdfBtn.addEventListener('click', async () => {
+        downloadPdfBtn.disabled = true;
+        downloadPdfBtn.textContent = 'Generating PDF...';
+
+        try {
+            const response = await fetch('api/?route=export-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ editableResults }),
+            });
+
+            if (!response.ok) {
+                let errMsg = 'PDF generation failed';
+                try {
+                    const errData = await response.json();
+                    errMsg = errData.error || errMsg;
+                } catch (_) {}
+                throw new Error(errMsg);
+            }
+
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'resume.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            alert('PDF download failed: ' + err.message);
+        } finally {
+            downloadPdfBtn.disabled = false;
+            downloadPdfBtn.textContent = 'Download PDF';
+        }
+    });
 })();

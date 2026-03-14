@@ -25,6 +25,8 @@ require_once $base . '/src/Models/Testimonial.php';
 
 require_once $base . '/src/Services/OllamaService.php';
 require_once $base . '/src/Services/PromptBuilder.php';
+require_once $base . '/src/Services/LatexBuilder.php';
+require_once $base . '/src/Services/PdfCompiler.php';
 require_once $base . '/src/Controllers/PersonalInfoController.php';
 require_once $base . '/src/Controllers/EducationController.php';
 require_once $base . '/src/Controllers/ExperienceController.php';
@@ -32,6 +34,7 @@ require_once $base . '/src/Controllers/ProjectController.php';
 require_once $base . '/src/Controllers/TestimonialController.php';
 
 require_once $base . '/src/Controllers/SelectionController.php';
+require_once $base . '/src/Controllers/PdfController.php';
 
 $router = new Router();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -61,5 +64,6 @@ $router->register('PUT', 'testimonials', [TestimonialController::class, 'update'
 $router->register('DELETE', 'testimonials', [TestimonialController::class, 'destroy']);
 
 $router->register('POST', 'selection', [SelectionController::class, 'generate']);
+$router->register('POST', 'export-pdf', [PdfController::class, 'generate']);
 
 $router->dispatch($method, $route);

@@ -121,7 +121,7 @@ class LatexBuilder
             $startDate = $this->formatDate($edu['start_date'] ?? '');
             $endDate = !empty($edu['end_date']) ? $this->formatDate($edu['end_date']) : 'Present';
 
-            $lines[] = '{\bf ' . $degree . '}, ' . $school . ' \hfill {' . $startDate . ' - ' . $endDate . '}\\\\';
+            $lines[] = '{\bf ' . $degree . '} \hfill {' . $startDate . ' - ' . $endDate . '}\\\\' . $school . '\\\\';
         }
 
         $lines[] = '';
@@ -201,7 +201,7 @@ class LatexBuilder
             $lines[] = '\needspace{4\baselineskip}';
             $url = $item['url'] ?? '';
             if ($url) {
-                $lines[] = '\textbf{' . $name . '} \hfill \href{' . $this->escapeLatex($url) . '}{(Link)}';
+                $lines[] = '\textbf{' . $name . '} \href{' . $this->escapeLatex($url) . '}{(Link)}';
             } else {
                 $lines[] = '\textbf{' . $name . '}';
             }

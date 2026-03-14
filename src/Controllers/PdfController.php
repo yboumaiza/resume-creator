@@ -19,17 +19,24 @@ class PdfController
         $education = (new Education())->getAll();
         $testimonials = (new Testimonial())->getAll();
 
-        // Aggregate unique skills from experiences + projects
-        $skillSet = [];
-        foreach (['experiences', 'projects'] as $section) {
-            foreach ($editable[$section] ?? [] as $entry) {
-                foreach ($entry['skills'] ?? [] as $skill) {
-                    $lower = strtolower($skill);
-                    if (!isset($skillSet[$lower])) {
-                        $skillSet[$lower] = $skill;
+        // Use curated skills if available, otherwise fall back to aggregation
+        $curatedSkills = $editable['curatedSkills'] ?? [];
+
+        if (!empty($curatedSkills)) {
+            $skills = array_map(fn($cs) => is_array($cs) ? ($cs['name'] ?? $cs) : $cs, $curatedSkills);
+        } else {
+            $skillSet = [];
+            foreach (['experiences', 'projects'] as $section) {
+                foreach ($editable[$section] ?? [] as $entry) {
+                    foreach ($entry['skills'] ?? [] as $skill) {
+                        $lower = strtolower($skill);
+                        if (!isset($skillSet[$lower])) {
+                            $skillSet[$lower] = $skill;
+                        }
                     }
                 }
             }
+            $skills = array_values($skillSet);
         }
 
         // Build data array for LatexBuilder
@@ -37,7 +44,7 @@ class PdfController
             'personal'     => $personal ?? [],
             'objective'    => $editable['objective'] ?? '',
             'education'    => $education,
-            'skills'       => array_values($skillSet),
+            'skills'       => $skills,
             'experiences'  => $editable['experiences'] ?? [],
             'projects'     => $editable['projects'] ?? [],
             'testimonials' => $testimonials,

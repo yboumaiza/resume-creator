@@ -1148,6 +1148,33 @@ header h1 {
     gap: 6px;
 }
 
+/* Curated skills card */
+.curated-skills-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+}
+
+.curated-skills-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.curated-skills-header h4 {
+    font-size: 0.95rem;
+    margin: 0;
+}
+
+.curated-skills-header div {
+    display: flex;
+    gap: 6px;
+}
+
 /* Commitment badge */
 .commitment-badge {
     display: inline-block;

@@ -38,6 +38,7 @@ class SelectionController
             'filter-skills' => $this->filterSkills(),
             'sort-skills'   => $this->sortSkills(),
             'bullets'       => $this->generateBullets(),
+            'curate-skills' => $this->curateSkills(),
             'objective'     => $this->generateObjective(),
             'ats-check'     => $this->atsCheck(),
             default         => $this->respondError(400, 'Invalid or missing step parameter'),
@@ -240,6 +241,57 @@ class SelectionController
                 'item_key' => $itemKey,
                 'bullets' => $result['bullets'] ?? [],
             ]);
+        } catch (AiException $e) {
+            $this->respondAiError($e);
+        }
+    }
+
+    private function curateSkills(): void
+    {
+        $data = $this->requestData;
+
+        if (empty($data['job_analysis']) || !isset($data['all_classified_skills'])) {
+            $this->respondError(400, 'Missing job_analysis or all_classified_skills');
+            return;
+        }
+
+        $allClassified = $data['all_classified_skills'];
+
+        if (count($allClassified) <= 1) {
+            $this->respondSuccess(['curated_skills' => $allClassified]);
+            return;
+        }
+
+        $prompt = $this->prompts->curateSkills($data['job_analysis'], $allClassified);
+
+        try {
+            $result = $this->ai->generate($prompt);
+            $rawCurated = $result['curated_skills'] ?? [];
+
+            // Build a lookup of valid input skill names (lowercase)
+            $validSkills = [];
+            foreach ($allClassified as $cs) {
+                $name = is_array($cs) ? ($cs['name'] ?? '') : $cs;
+                $validSkills[strtolower($name)] = true;
+            }
+
+            $curatedSkills = [];
+            foreach ($rawCurated as $entry) {
+                if (is_array($entry) && isset($entry['name'])) {
+                    if (isset($validSkills[strtolower($entry['name'])])) {
+                        $curatedSkills[] = [
+                            'name' => $entry['name'],
+                            'type' => in_array($entry['type'] ?? '', ['language', 'tool', 'skill']) ? $entry['type'] : 'tool',
+                        ];
+                    }
+                }
+            }
+
+            if (empty($curatedSkills)) {
+                $curatedSkills = array_slice($allClassified, 0, 15);
+            }
+
+            $this->respondSuccess(['curated_skills' => $curatedSkills]);
         } catch (AiException $e) {
             $this->respondAiError($e);
         }

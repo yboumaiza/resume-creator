@@ -18,7 +18,10 @@
       "Bash(cd \"C:/xampp/htdocs/resume\" && php -l src/Env.php && php -l src/Exceptions/AiException.php && php -l src/Services/AiServiceInterface.php && php -l src/Services/OllamaService.php && php -l src/Services/OpenAiService.php && php -l src/Services/AnthropicService.php && php -l src/Services/GeminiService.php && php -l src/Services/AiServiceFactory.php && php -l src/Controllers/SelectionController.php && php -l api/index.php && php -l config.php && echo \"All OK\")",
       "Bash(grep -r \"commitment\\\\|Freelance\\\\|Contractor\" /c/xampp/htdocs/resume --include=\"*.js\" --include=\"*.php\" --include=\"*.html\" 2>/dev/null | head -20)",
       "Bash(php -l src/Services/PromptBuilder.php && php -l src/Controllers/SelectionController.php)",
-      "Bash(grep -r \"aggregate.*skill\\\\|collect.*skill\\\\|dedup\\\\|limit\" /c/xampp/htdocs/resume/src --include=\"*.php\" 2>/dev/null | head -20)"
+      "Bash(grep -r \"aggregate.*skill\\\\|collect.*skill\\\\|dedup\\\\|limit\" /c/xampp/htdocs/resume/src --include=\"*.php\" 2>/dev/null | head -20)",
+      "Bash(php -l src/Services/PromptBuilder.php && php -l src/Controllers/SelectionController.php && php -l src/Controllers/PdfController.php)",
+      "Bash(node -c js/selection.js)",
+      "Bash(find:*)"
     ]
   }
 }

@@ -10,6 +10,7 @@
     const resultObjectiveSlot = document.getElementById('result-objective');
     const resultExperiencesSlot = document.getElementById('result-experiences');
     const resultProjectsSlot = document.getElementById('result-projects');
+    const resultCuratedSkillsSlot = document.getElementById('result-curated-skills');
 
     const previewEmpty = document.getElementById('preview-empty');
     const downloadPdfBtn = document.getElementById('download-pdf-btn');
@@ -27,12 +28,14 @@
         objective: '',
         experiences: [],
         projects: [],
+        curatedSkills: [],
     };
 
     function resetEditableResults() {
         editableResults.objective = '';
         editableResults.experiences = [];
         editableResults.projects = [];
+        editableResults.curatedSkills = [];
         cachedJobAnalysis = null;
         cachedSelectedExpIds = [];
         resultObjectiveSlot.innerHTML = '';
@@ -41,6 +44,8 @@
         resultExperiencesSlot.classList.add('hidden');
         resultProjectsSlot.innerHTML = '';
         resultProjectsSlot.classList.add('hidden');
+        resultCuratedSkillsSlot.innerHTML = '';
+        resultCuratedSkillsSlot.classList.add('hidden');
         downloadPdfContainer.classList.add('hidden');
     }
 
@@ -283,6 +288,10 @@
                 populateEditableItems('projects', projRanked, projBullets);
             }
 
+            // Curate Skills (global)
+            await runCurateSkills(jobAnalysis, stepNum);
+            stepNum++;
+
             // Objective
             await runObjective(jobAnalysis, allBullets, selectedExpIds, stepNum);
 
@@ -291,6 +300,7 @@
             renderEditableObjective();
             if (editableResults.experiences.length) renderEditableSection('experiences');
             if (editableResults.projects.length) renderEditableSection('projects');
+            renderEditableCuratedSkills();
             downloadPdfContainer.classList.remove('hidden');
             document.querySelector('.tab[data-tab="preview"]').click();
 
@@ -436,6 +446,40 @@
             body.innerHTML = `<p class="step-summary">${rankedItems.length} item${rankedItems.length !== 1 ? 's' : ''} processed</p>`;
             completeStep(stepEl, false);
             return newBullets;
+        } catch (err) {
+            failStep(stepEl, err.message, err.detail);
+            throw err;
+        }
+    }
+
+    // --- Curate Skills (global) ---
+
+    async function runCurateSkills(jobAnalysis, stepNum) {
+        const stepEl = appendStep(`Step ${stepNum}: Curating technical skills...`);
+
+        try {
+            // Aggregate all classified skills from experiences + projects (deduplicated)
+            const skillSet = new Map();
+            for (const section of ['experiences', 'projects']) {
+                for (const entry of editableResults[section]) {
+                    const classified = entry.classified_skills || [];
+                    for (const cs of classified) {
+                        const lower = cs.name.toLowerCase();
+                        if (!skillSet.has(lower)) {
+                            skillSet.set(lower, cs);
+                        }
+                    }
+                }
+            }
+            const allClassifiedSkills = Array.from(skillSet.values());
+
+            const result = await selectionApi('curate-skills', {
+                job_analysis: jobAnalysis,
+                all_classified_skills: allClassifiedSkills,
+            });
+
+            editableResults.curatedSkills = result.curated_skills || allClassifiedSkills;
+            completeStep(stepEl, false);
         } catch (err) {
             failStep(stepEl, err.message, err.detail);
             throw err;
@@ -613,6 +657,171 @@
                 }
                 closeModal();
             });
+        });
+    }
+
+    // --- Editable curated skills ---
+
+    function renderEditableCuratedSkills() {
+        const skills = editableResults.curatedSkills;
+        if (!skills.length) return;
+
+        let tagsHtml = '<div class="editable-tags">';
+        skills.forEach((cs, si) => {
+            const isFirst = si === 0;
+            const isLast = si === skills.length - 1;
+            tagsHtml += `
+                <span class="tag editable-tag" data-skill="${si}">
+                    ${escapeHtml(cs.name)}
+                    <span class="tag-actions">
+                        ${!isFirst ? '<button class="tag-action curated-up" title="Move up">&uarr;</button>' : ''}
+                        ${!isLast ? '<button class="tag-action curated-down" title="Move down">&darr;</button>' : ''}
+                        <button class="tag-action curated-edit" title="Edit">&#9998;</button>
+                        <button class="tag-action curated-delete" title="Delete">&times;</button>
+                    </span>
+                </span>`;
+        });
+        tagsHtml += '<button class="tag-action tag-add curated-add" title="Add skill">+</button>';
+        tagsHtml += '</div>';
+
+        resultCuratedSkillsSlot.innerHTML = `
+            <div class="curated-skills-card">
+                <div class="curated-skills-header">
+                    <h4>Technical Skills</h4>
+                    <div>
+                        <button class="btn btn-sm curated-regenerate">&#8635; Regenerate</button>
+                    </div>
+                </div>
+                ${tagsHtml}
+            </div>
+        `;
+        resultCuratedSkillsSlot.classList.remove('hidden');
+        attachCuratedSkillsHandlers();
+    }
+
+    function attachCuratedSkillsHandlers() {
+        resultCuratedSkillsSlot.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+
+            const tag = btn.closest('.editable-tag');
+            if (tag) {
+                const si = parseInt(tag.dataset.skill);
+                if (btn.classList.contains('curated-delete')) {
+                    editableResults.curatedSkills.splice(si, 1);
+                    renderEditableCuratedSkills();
+                } else if (btn.classList.contains('curated-edit')) {
+                    const current = editableResults.curatedSkills[si];
+                    openModal('Edit Skill', `
+                        <div class="form-group">
+                            <label>Skill</label>
+                            <input type="text" name="skill-value" value="${escapeHtml(current.name)}" required>
+                        </div>
+                    `, () => {
+                        const val = document.querySelector('#modal-form [name="skill-value"]').value.trim();
+                        if (val) {
+                            editableResults.curatedSkills[si] = { ...current, name: val };
+                            renderEditableCuratedSkills();
+                        }
+                        closeModal();
+                    });
+                } else if (btn.classList.contains('curated-up')) {
+                    if (si > 0) {
+                        const skills = editableResults.curatedSkills;
+                        [skills[si], skills[si - 1]] = [skills[si - 1], skills[si]];
+                        renderEditableCuratedSkills();
+                    }
+                } else if (btn.classList.contains('curated-down')) {
+                    const skills = editableResults.curatedSkills;
+                    if (si < skills.length - 1) {
+                        [skills[si], skills[si + 1]] = [skills[si + 1], skills[si]];
+                        renderEditableCuratedSkills();
+                    }
+                }
+                return;
+            }
+
+            if (btn.classList.contains('curated-add')) {
+                // Pool: all item skills not already curated
+                const curatedLower = editableResults.curatedSkills.map(s => s.name.toLowerCase());
+                const pool = [];
+                for (const section of ['experiences', 'projects']) {
+                    for (const entry of editableResults[section]) {
+                        for (const s of (entry.skills || [])) {
+                            if (!curatedLower.includes(s.toLowerCase()) && !pool.find(p => p.toLowerCase() === s.toLowerCase())) {
+                                pool.push(s);
+                            }
+                        }
+                    }
+                }
+
+                let fieldsHtml = '';
+                if (pool.length > 0) {
+                    fieldsHtml += '<div class="form-group"><label>Select from available skills</label><div class="skill-options">';
+                    pool.forEach(skill => {
+                        fieldsHtml += `<label class="skill-option">
+                            <input type="checkbox" name="skill-select" value="${escapeHtml(skill)}">
+                            <span class="skill-option-label">${escapeHtml(skill)}</span>
+                        </label>`;
+                    });
+                    fieldsHtml += '</div></div>';
+                }
+                fieldsHtml += `<div class="form-group">
+                    <label>${pool.length > 0 ? 'Or enter a custom skill' : 'Skill'}</label>
+                    <input type="text" name="skill-value" placeholder="Enter skill name">
+                </div>`;
+
+                openModal('Add Skill', fieldsHtml, () => {
+                    const selected = Array.from(
+                        document.querySelectorAll('#modal-form [name="skill-select"]:checked')
+                    ).map(cb => cb.value);
+                    const custom = document.querySelector('#modal-form [name="skill-value"]').value.trim();
+
+                    const toAdd = [...selected];
+                    if (custom && !toAdd.find(s => s.toLowerCase() === custom.toLowerCase())) {
+                        toAdd.push(custom);
+                    }
+
+                    for (const name of toAdd) {
+                        editableResults.curatedSkills.push({ name, type: 'tool' });
+                    }
+                    if (toAdd.length) renderEditableCuratedSkills();
+                    closeModal();
+                });
+                return;
+            }
+
+            if (btn.classList.contains('curated-regenerate')) {
+                if (!cachedJobAnalysis) {
+                    alert('No job analysis cached. Please run the full generation first.');
+                    return;
+                }
+                btn.disabled = true;
+                btn.textContent = 'Regenerating...';
+
+                const skillSet = new Map();
+                for (const section of ['experiences', 'projects']) {
+                    for (const entry of editableResults[section]) {
+                        for (const cs of (entry.classified_skills || [])) {
+                            const lower = cs.name.toLowerCase();
+                            if (!skillSet.has(lower)) skillSet.set(lower, cs);
+                        }
+                    }
+                }
+
+                selectionApi('curate-skills', {
+                    job_analysis: cachedJobAnalysis,
+                    all_classified_skills: Array.from(skillSet.values()),
+                }).then(result => {
+                    editableResults.curatedSkills = result.curated_skills || [];
+                    renderEditableCuratedSkills();
+                }).catch(err => {
+                    alert('Skills curation failed: ' + err.message);
+                    btn.disabled = false;
+                    btn.textContent = '\u21BB Regenerate';
+                });
+                return;
+            }
         });
     }
 

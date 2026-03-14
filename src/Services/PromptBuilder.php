@@ -101,6 +101,43 @@ Respond ONLY with the JSON object, no additional text.
 PROMPT;
     }
 
+    public function curateSkills(array $jobAnalysis, array $allClassifiedSkills): string
+    {
+        $analysisJson = json_encode($jobAnalysis, JSON_PRETTY_PRINT);
+        $skillsJson = json_encode($allClassifiedSkills, JSON_PRETTY_PRINT);
+
+        return <<<PROMPT
+You are a resume optimization expert. Given a job analysis and a pool of classified skills collected from the candidate's experiences and projects, select the most important skills for the resume's "Technical Skills" section.
+
+JOB ANALYSIS:
+{$analysisJson}
+
+ALL CANDIDATE SKILLS:
+{$skillsJson}
+
+Respond with a JSON object:
+{
+  "curated_skills": [
+    { "name": "Python", "type": "language" },
+    { "name": "Docker", "type": "tool" },
+    { "name": "Agile", "type": "skill" }
+  ]
+}
+
+Rules:
+- Select the 10-15 most important skills for a resume targeting this role.
+- Prioritize in this order: skills matching required_skills > preferred_skills > key_responsibilities.
+- Only select from the provided list. Do not add, remove, or rename any skill.
+- Maintain the "type" classification from the input (language, tool, or skill).
+- Order from most important to least important.
+- If the total pool has 10 or fewer skills, return all of them.
+- If the pool has more than 15 skills, select at most 15.
+- Prefer a balanced mix of languages, tools, and skills when possible, but relevance to the job always takes priority.
+
+Respond ONLY with the JSON object, no additional text.
+PROMPT;
+    }
+
     public function experienceBullets(array $jobAnalysis, string $itemLabel, string $itemDescription, array $sortedSkills, array $previousBullets, array $classifiedSkills = []): string
     {
         $analysisJson = json_encode($jobAnalysis, JSON_PRETTY_PRINT);

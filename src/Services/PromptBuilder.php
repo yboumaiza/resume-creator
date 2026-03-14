@@ -80,9 +80,9 @@ SKILLS TO SORT:
 Respond with a JSON object:
 {
   "sorted_skills": [
-    { "name": "Python", "type": "language" },
-    { "name": "Docker", "type": "tool" },
-    { "name": "Agile", "type": "skill" }
+    { "name": "Python", "type": "language", "subcategory": "general_purpose_language" },
+    { "name": "Docker", "type": "tool", "subcategory": "containerization" },
+    { "name": "Agile", "type": "skill", "subcategory": "project_methodology" }
   ]
 }
 
@@ -96,6 +96,18 @@ Rules:
   - "tool" = Frameworks, libraries, platforms, infrastructure tools, databases, cloud services (e.g., React, Docker, AWS, Git, Kubernetes, PostgreSQL, Node.js)
   - "skill" = Methodologies, practices, soft skills, processes (e.g., Agile, Scrum, CI/CD, TDD, Leadership, REST API design)
 - When unsure about a skill's type, default to "tool".
+- Assign a "subcategory" string (lowercase_snake_case) capturing the skill's functional niche. Skills in the same subcategory are competing/alternative technologies that serve the same purpose. Examples:
+  - cloud_platform: AWS, Azure, GCP
+  - frontend_framework: React, Angular, Vue
+  - game_engine: Unity, Unreal
+  - networking_framework: Photon, Mirror
+  - relational_db: PostgreSQL, MySQL
+  - containerization: Docker, Podman
+  - css_framework: Tailwind, Bootstrap
+  - backend_framework: Express, Django, Spring
+  - version_control: Git, SVN
+  - project_methodology: Agile, Waterfall
+- When unsure about a skill's subcategory, default to "general".
 
 Respond ONLY with the JSON object, no additional text.
 PROMPT;
@@ -104,7 +116,7 @@ PROMPT;
     public function curateSkills(array $jobAnalysis, array $allClassifiedSkills): string
     {
         $analysisJson = json_encode($jobAnalysis, JSON_PRETTY_PRINT);
-        $skillsJson = json_encode($allClassifiedSkills, JSON_PRETTY_PRINT);
+        $skillsBlock = $this->formatClassifiedSkillsForCuration($allClassifiedSkills);
 
         return <<<PROMPT
 You are a resume optimization expert. Given a job analysis and a pool of classified skills collected from the candidate's experiences and projects, select the most important skills for the resume's "Technical Skills" section.
@@ -113,7 +125,7 @@ JOB ANALYSIS:
 {$analysisJson}
 
 ALL CANDIDATE SKILLS:
-{$skillsJson}
+{$skillsBlock}
 
 Respond with a JSON object:
 {
@@ -133,6 +145,10 @@ Rules:
 - If the total pool has 10 or fewer skills, return all of them.
 - If the pool has more than 15 skills, select at most 15.
 - Prefer a balanced mix of languages, tools, and skills when possible, but relevance to the job always takes priority.
+- CONFLICT AWARENESS: Skills sharing the same subcategory (shown in brackets) are competing alternatives.
+  - Prefer ONE skill per subcategory unless the candidate used multiple across different roles.
+  - If both are legitimate, limit to at most 2 per competing subcategory.
+  - Prioritize the one that better matches the job requirements.
 
 Respond ONLY with the JSON object, no additional text.
 PROMPT;
@@ -174,6 +190,11 @@ Rules:
   - Tools & Frameworks: use with "using" or "leveraging" (e.g., "Containerized deployments using Docker", "Built UI components using React")
   - Professional Skills: reference as practices or methodologies (e.g., "Applied Agile methodology to streamline sprints", "Adopted TDD practices")
   - NEVER prefix a skill with its category label in the bullet text (do NOT write "Programming Language: Python" or "Tool: Docker")
+- SKILL COHERENCE: Skills marked [COMPETING] in the same subcategory are alternative technologies that serve the same purpose (e.g., AWS vs Azure, React vs Angular). You MUST:
+  - Pick AT MOST ONE skill from each [COMPETING] group across all 3 bullets for this item.
+  - Choose the one most supported by the item's description. If the description mentions a specific technology, use that one exclusively.
+  - Do NOT present competing technologies as if used simultaneously in the same project/role.
+- Ensure the technology narrative is internally consistent: do not combine tools from incompatible ecosystems (e.g., a networking framework that handles its own infrastructure does not need a separate cloud platform mentioned alongside it for the same purpose).
 
 Respond ONLY with the JSON object, no additional text.
 PROMPT;
@@ -215,6 +236,11 @@ Rules:
   - Tools & Frameworks: use with "using" or "leveraging" (e.g., "Containerized deployments using Docker", "Built UI components using React")
   - Professional Skills: reference as practices or methodologies (e.g., "Applied Agile methodology to streamline sprints", "Adopted TDD practices")
   - NEVER prefix a skill with its category label in the bullet text (do NOT write "Programming Language: Python" or "Tool: Docker")
+- SKILL COHERENCE: Skills marked [COMPETING] in the same subcategory are alternative technologies that serve the same purpose (e.g., AWS vs Azure, React vs Angular). You MUST:
+  - Pick AT MOST ONE skill from each [COMPETING] group across all 3 bullets for this item.
+  - Choose the one most supported by the item's description. If the description mentions a specific technology, use that one exclusively.
+  - Do NOT present competing technologies as if used simultaneously in the same project/role.
+- Ensure the technology narrative is internally consistent: do not combine tools from incompatible ecosystems (e.g., a networking framework that handles its own infrastructure does not need a separate cloud platform mentioned alongside it for the same purpose).
 
 Respond ONLY with the JSON object, no additional text.
 PROMPT;
@@ -289,6 +315,14 @@ PROMPT;
             return "Relevant Skills to highlight: [{$skillsList}]";
         }
 
+        $hasSubcategories = false;
+        foreach ($classifiedSkills as $entry) {
+            if (isset($entry['subcategory']) && $entry['subcategory'] !== 'general') {
+                $hasSubcategories = true;
+                break;
+            }
+        }
+
         $groups = [
             'language' => ['label' => 'Programming Languages', 'items' => []],
             'tool'     => ['label' => 'Tools & Frameworks', 'items' => []],
@@ -300,13 +334,90 @@ PROMPT;
             if (!isset($groups[$type])) {
                 $type = 'tool';
             }
-            $groups[$type]['items'][] = $entry['name'];
+            $groups[$type]['items'][] = [
+                'name' => $entry['name'],
+                'subcategory' => $entry['subcategory'] ?? 'general',
+            ];
         }
 
         $lines = ["Relevant Skills to highlight:"];
+
         foreach ($groups as $group) {
-            if (!empty($group['items'])) {
-                $lines[] = "  {$group['label']}: " . implode(', ', $group['items']);
+            if (empty($group['items'])) {
+                continue;
+            }
+
+            if (!$hasSubcategories) {
+                $names = array_map(fn($i) => $i['name'], $group['items']);
+                $lines[] = "  {$group['label']}: " . implode(', ', $names);
+                continue;
+            }
+
+            $lines[] = "  {$group['label']}:";
+            $subcats = [];
+            foreach ($group['items'] as $item) {
+                $subcats[$item['subcategory']][] = $item['name'];
+            }
+            foreach ($subcats as $subcat => $names) {
+                $marker = count($names) >= 2 ? ' [COMPETING]' : '';
+                $lines[] = "    [{$subcat}]{$marker}: " . implode(', ', $names);
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function formatClassifiedSkillsForCuration(array $classifiedSkills): string
+    {
+        if (empty($classifiedSkills)) {
+            return '(none)';
+        }
+
+        $hasSubcategories = false;
+        foreach ($classifiedSkills as $entry) {
+            if (is_array($entry) && isset($entry['subcategory']) && $entry['subcategory'] !== 'general') {
+                $hasSubcategories = true;
+                break;
+            }
+        }
+
+        if (!$hasSubcategories) {
+            return json_encode($classifiedSkills, JSON_PRETTY_PRINT);
+        }
+
+        $groups = [
+            'language' => ['label' => 'Programming Languages', 'items' => []],
+            'tool'     => ['label' => 'Tools & Frameworks', 'items' => []],
+            'skill'    => ['label' => 'Professional Skills', 'items' => []],
+        ];
+
+        foreach ($classifiedSkills as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $type = $entry['type'] ?? 'tool';
+            if (!isset($groups[$type])) {
+                $type = 'tool';
+            }
+            $groups[$type]['items'][] = [
+                'name' => $entry['name'] ?? '',
+                'subcategory' => $entry['subcategory'] ?? 'general',
+            ];
+        }
+
+        $lines = [];
+        foreach ($groups as $group) {
+            if (empty($group['items'])) {
+                continue;
+            }
+            $lines[] = "{$group['label']}:";
+            $subcats = [];
+            foreach ($group['items'] as $item) {
+                $subcats[$item['subcategory']][] = $item['name'];
+            }
+            foreach ($subcats as $subcat => $names) {
+                $marker = count($names) >= 2 ? ' [COMPETING]' : '';
+                $lines[] = "  [{$subcat}]{$marker}: " . implode(', ', $names);
             }
         }
 

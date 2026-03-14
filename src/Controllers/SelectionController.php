@@ -143,7 +143,7 @@ class SelectionController
         $relevantSkills = $data['relevant_skills'];
 
         if (count($relevantSkills) <= 1) {
-            $classifiedSkills = array_map(fn($s) => ['name' => $s, 'type' => 'tool'], $relevantSkills);
+            $classifiedSkills = array_map(fn($s) => ['name' => $s, 'type' => 'tool', 'subcategory' => 'general'], $relevantSkills);
             $this->respondSuccess([
                 'item_key' => $data['item_key'],
                 'sorted_skills' => $relevantSkills,
@@ -167,16 +167,17 @@ class SelectionController
                     $classifiedSkills[] = [
                         'name' => $entry['name'],
                         'type' => in_array($entry['type'] ?? '', ['language', 'tool', 'skill']) ? $entry['type'] : 'tool',
+                        'subcategory' => $entry['subcategory'] ?? 'general',
                     ];
                 } elseif (is_string($entry)) {
                     $sortedNames[] = $entry;
-                    $classifiedSkills[] = ['name' => $entry, 'type' => 'tool'];
+                    $classifiedSkills[] = ['name' => $entry, 'type' => 'tool', 'subcategory' => 'general'];
                 }
             }
 
             if (empty($sortedNames)) {
                 $sortedNames = $relevantSkills;
-                $classifiedSkills = array_map(fn($s) => ['name' => $s, 'type' => 'tool'], $relevantSkills);
+                $classifiedSkills = array_map(fn($s) => ['name' => $s, 'type' => 'tool', 'subcategory' => 'general'], $relevantSkills);
             }
 
             $this->respondSuccess([

@@ -232,7 +232,7 @@ class LatexBuilder
         $lines[] = '\begin{itemize}';
         $lines[] = '    \itemsep -3pt {}';
 
-        foreach ($testimonials as $t) {
+        foreach (array_reverse($testimonials) as $t) {
             $message = $this->escapeLatex($t['message'] ?? '');
             $name = $this->escapeLatex($t['name'] ?? '');
 
@@ -244,7 +244,7 @@ class LatexBuilder
                 $attribution .= ' at ' . $this->escapeLatex($t['company']);
             }
 
-            $line = '    \item ``' . $message . "'' --- " . $attribution;
+            $line = '    \item ``' . $message . "'' \\newline --- " . $attribution;
 
             if (!empty($t['linkedin'])) {
                 $line .= ' \href{' . $this->escapeLatex($t['linkedin']) . '}{(LinkedIn)}';

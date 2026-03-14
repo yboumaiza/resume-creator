@@ -183,6 +183,47 @@ Respond ONLY with the JSON object, no additional text.
 PROMPT;
     }
 
+    public function sortTestimonials(array $testimonials, array $jobAnalysis): string
+    {
+        $count = count($testimonials);
+        $analysisJson = json_encode($jobAnalysis, JSON_PRETTY_PRINT);
+        $testimonialsJson = json_encode(array_map(function ($t, $i) {
+            return [
+                'index' => $i,
+                'name' => $t['name'] ?? 'Unknown',
+                'position' => $t['position'] ?? '',
+                'company' => $t['company'] ?? '',
+                'message' => $t['message'] ?? '',
+            ];
+        }, $testimonials, array_keys($testimonials)), JSON_PRETTY_PRINT);
+
+        return <<<PROMPT
+You are a resume strategist. Given a list of testimonials and a target job analysis, rank the testimonials from most to least impressive for building credibility on a resume.
+
+JOB ANALYSIS:
+{$analysisJson}
+
+TESTIMONIALS:
+{$testimonialsJson}
+
+Respond with a JSON object:
+{
+  "sorted_indices": [2, 0, 3, 1]
+}
+
+Rules:
+- Return an array of the original indices, sorted from most impressive to least impressive.
+- Ranking criteria (in order of importance):
+  1. Company prestige and recognition — well-known or Fortune 500 companies rank higher.
+  2. Position seniority — C-level > VP > Director > Manager > Individual Contributor.
+  3. Testimony quality — specificity, quantified praise, and relevance to the target role.
+- Include ALL indices exactly once. Do not omit or duplicate any index.
+- The array must contain exactly {$count} elements.
+
+Respond ONLY with the JSON object, no additional text.
+PROMPT;
+    }
+
     private function buildTestimonialsContext(array $testimonials): string
     {
         if (empty($testimonials)) {

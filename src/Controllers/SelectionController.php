@@ -264,6 +264,28 @@ class SelectionController
 
         $testimonials = $this->testimonialModel->getAll();
 
+        if (count($testimonials) > 1) {
+            try {
+                $sortPrompt = $this->prompts->sortTestimonials($testimonials, $data['job_analysis']);
+                $sortResult = $this->ai->generate($sortPrompt);
+                $sortedIndices = $sortResult['sorted_indices'] ?? [];
+
+                if (
+                    is_array($sortedIndices)
+                    && count($sortedIndices) === count($testimonials)
+                    && !array_diff($sortedIndices, array_keys($testimonials))
+                ) {
+                    $sorted = [];
+                    foreach ($sortedIndices as $idx) {
+                        $sorted[] = $testimonials[$idx];
+                    }
+                    $testimonials = $sorted;
+                }
+            } catch (AiException $e) {
+                // Fallback: keep original order
+            }
+        }
+
         $prompt = $this->prompts->objective(
             $data['job_analysis'],
             $data['all_bullets'],

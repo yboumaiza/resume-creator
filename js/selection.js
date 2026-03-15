@@ -5,6 +5,7 @@
     const expCheckboxes = document.getElementById('experience-checkboxes');
     const projCheckboxes = document.getElementById('project-checkboxes');
     const providerSelect = document.getElementById('ai-provider');
+    const autoSelectBtn = document.getElementById('auto-select-btn');
 
     // Editable results DOM refs
     const resultObjectiveSlot = document.getElementById('result-objective');
@@ -153,6 +154,43 @@
             projCheckboxes.innerHTML = '<p class="empty-state">Failed to load.</p>';
         }
     };
+
+    // --- Auto-Select ---
+
+    autoSelectBtn.addEventListener('click', async () => {
+        const jd = document.getElementById('job-description').value.trim();
+        if (!jd) {
+            alert('Please paste a job description first.');
+            return;
+        }
+
+        const hasItems = experiences.length > 0 || projects.length > 0;
+        if (!hasItems) {
+            alert('No experiences or projects to select from. Add some first.');
+            return;
+        }
+
+        autoSelectBtn.disabled = true;
+        autoSelectBtn.textContent = 'Selecting...';
+
+        try {
+            const result = await selectionApi('auto-select', { job_description: jd });
+            const selectedExpIds = new Set((result.selected_experience_ids || []).map(String));
+            const selectedProjIds = new Set((result.selected_project_ids || []).map(String));
+
+            expCheckboxes.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = selectedExpIds.has(cb.value);
+            });
+            projCheckboxes.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = selectedProjIds.has(cb.value);
+            });
+        } catch (err) {
+            alert('Auto-select failed: ' + (err.message || err));
+        } finally {
+            autoSelectBtn.disabled = false;
+            autoSelectBtn.textContent = 'Auto-Select';
+        }
+    });
 
     // --- Step UI helpers ---
 

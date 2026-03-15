@@ -346,6 +346,10 @@ header h1 {
     color: var(--text-muted);
 }
 
+.auto-select-row {
+    margin: 12px 0;
+}
+
 /* Selection page */
 .selection-form label {
     display: block;

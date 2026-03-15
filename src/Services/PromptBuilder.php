@@ -2,6 +2,61 @@
 
 class PromptBuilder
 {
+    public function autoSelect(string $jobDescription, array $experiences, array $projects): string
+    {
+        $experiencesBlock = '';
+        foreach ($experiences as $exp) {
+            $id = $exp['id'];
+            $title = $exp['title'] ?? '';
+            $company = $exp['company'] ?? '';
+            $startDate = $exp['start_date'] ?? '';
+            $endDate = $exp['end_date'] ?? 'Present';
+            $commitment = $exp['commitment'] ?? '';
+            $skills = implode(', ', $exp['skills'] ?? []);
+            $description = $exp['description'] ?? '';
+            $experiencesBlock .= "[ID={$id}] {$title} at {$company} | {$startDate} - {$endDate} | {$commitment}\n";
+            $experiencesBlock .= "  Skills: {$skills}\n";
+            $experiencesBlock .= "  Description: {$description}\n\n";
+        }
+
+        $projectsBlock = '';
+        foreach ($projects as $proj) {
+            $id = $proj['id'];
+            $name = $proj['name'] ?? '';
+            $skills = implode(', ', $proj['skills'] ?? []);
+            $description = $proj['description'] ?? '';
+            $projectsBlock .= "[ID={$id}] {$name}\n";
+            $projectsBlock .= "  Skills: {$skills}\n";
+            $projectsBlock .= "  Description: {$description}\n\n";
+        }
+
+        return <<<PROMPT
+You are a career strategist. Given a job description and a candidate's experiences and projects, select the items most relevant to the target role.
+
+JOB DESCRIPTION:
+{$jobDescription}
+
+EXPERIENCES:
+{$experiencesBlock}
+PROJECTS:
+{$projectsBlock}
+Respond with a JSON object:
+{
+  "selected_experience_ids": [1, 3],
+  "selected_project_ids": [2]
+}
+
+Rules:
+- Select all experiences and projects that are relevant to the job description. There is no artificial cap.
+- Relevance criteria: prioritize alignment between the item's description/responsibilities and the job requirements over skill tag matches, since skill tags may be incomplete.
+- Recency and commitment type are secondary factors.
+- May return empty arrays if no items are relevant.
+- Return ONLY IDs that appear in the lists above. Do NOT invent IDs.
+
+Respond ONLY with the JSON object, no additional text.
+PROMPT;
+    }
+
     public function analyzeJd(string $jobDescription): string
     {
         return <<<PROMPT

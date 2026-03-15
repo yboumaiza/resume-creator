@@ -35,6 +35,7 @@ class SelectionController
 
         match ($step) {
             'unload-model'  => $this->unloadModel(),
+            'auto-select'   => $this->autoSelect(),
             'analyze-jd'    => $this->analyzeJd(),
             'filter-skills' => $this->filterSkills(),
             'sort-skills'   => $this->sortSkills(),
@@ -61,6 +62,56 @@ class SelectionController
             $this->respondSuccess(['unloaded' => true]);
         } else {
             $this->respondSuccess(['unloaded' => false]);
+        }
+    }
+
+    private function autoSelect(): void
+    {
+        $data = $this->requestData;
+
+        if (empty($data['job_description'])) {
+            $this->respondError(400, 'Missing job_description');
+            return;
+        }
+
+        $experiences = $this->experienceModel->getAll();
+        $projects = $this->projectModel->getAll();
+
+        if (empty($experiences) && empty($projects)) {
+            $this->respondSuccess([
+                'selected_experience_ids' => [],
+                'selected_project_ids' => [],
+            ]);
+            return;
+        }
+
+        $prompt = $this->prompts->autoSelect(
+            $data['job_description'],
+            $experiences,
+            $projects
+        );
+
+        try {
+            $result = $this->ai->generate($prompt);
+
+            $validExpIds = array_map(fn($e) => (int) $e['id'], $experiences);
+            $validProjIds = array_map(fn($p) => (int) $p['id'], $projects);
+
+            $selectedExpIds = array_values(array_intersect(
+                array_map('intval', $result['selected_experience_ids'] ?? []),
+                $validExpIds
+            ));
+            $selectedProjIds = array_values(array_intersect(
+                array_map('intval', $result['selected_project_ids'] ?? []),
+                $validProjIds
+            ));
+
+            $this->respondSuccess([
+                'selected_experience_ids' => $selectedExpIds,
+                'selected_project_ids' => $selectedProjIds,
+            ]);
+        } catch (AiException $e) {
+            $this->respondAiError($e);
         }
     }
 

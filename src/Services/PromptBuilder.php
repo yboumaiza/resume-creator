@@ -631,14 +631,14 @@ Respond with a JSON object:
   "findings": [
     {
       "severity": "error|warning|info",
-      "type": "rewrite_bullet|rewrite_objective|remove_bullet|remove_skill|remove_curated_skill|general",
+      "type": "rewrite_bullet|rewrite_objective|remove_bullet|remove_skill|remove_curated_skill|add_bullet|add_skill",
       "target": {
         "section": "experiences|projects|objective|curatedSkills",
         "item_key": "exp_1|proj_2|null",
         "index": 0
       },
       "problem": "Description of the cross-cutting issue",
-      "suggestion": "Complete replacement text for rewrites, advisory text for general, null for removals"
+      "suggestion": "Complete replacement text for rewrites, new bullet text for add_bullet, skill name for add_skill, null for removals"
     }
   ]
 }
@@ -652,10 +652,12 @@ Rules:
   5. Overall balance issues (too many similar items, missing diversity)
   6. Skill list vs. bullet content misalignment (skills listed but never demonstrated)
 - When a cross-cutting issue can be fixed by rewriting or removing specific bullets/skills, emit one finding per target with the appropriate actionable type (rewrite_bullet, rewrite_objective, remove_bullet, remove_skill, remove_curated_skill).
-- Use "general" only for issues that cannot be resolved by editing a specific bullet, skill, or objective (e.g., missing coverage that would require inventing new content).
-- For rewrites, "suggestion" must be the complete replacement text. For removals, "suggestion" must be null. For general, "suggestion" is advisory text.
+- When missing coverage of a critical job requirement is identified, emit an add_bullet finding targeting the most relevant item (section, item_key, index: null). The suggestion must be the complete bullet text. Do NOT fabricate metrics — only synthesize from information already present in the resume.
+- When a skill gap is identified (important to the target job but missing from the resume), emit an add_skill finding. For item-level skills: target specifies section, item_key, index: null. For curated skills: target specifies section: "curatedSkills", item_key: null, index: null. The suggestion must be the skill name.
+- Every finding MUST have a concrete, actionable type. Do NOT use advisory-only findings.
+- For rewrites, "suggestion" must be the complete replacement text. For removals, "suggestion" must be null. For add_bullet, "suggestion" must be the complete new bullet text. For add_skill, "suggestion" must be the skill name.
 - Do NOT fabricate metrics, numbers, or claims in suggestions — only rephrase using information already present in the original text.
-- "target.index" is the 0-based index of the bullet, skill, or curated skill within its parent item. For objective, set index to null.
+- "target.index" is the 0-based index of the bullet, skill, or curated skill within its parent item. For objective, set index to null. For add_bullet and add_skill, index must be null (items are appended).
 - "target.item_key" is the key shown in brackets (e.g., "exp_1"). For objective and curatedSkills, set item_key to null.
 - Return at most 15 findings.
 - If no cross-cutting issues exist, return an empty findings array.

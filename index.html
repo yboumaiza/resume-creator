@@ -17,8 +17,7 @@
                 <button class="tab" data-tab="projects">Projects</button>
 
                 <button class="tab" data-tab="testimonials">Testimonials</button>
-                <button class="tab" data-tab="selection">Selection</button>
-                <button class="tab" data-tab="preview">Preview</button>
+                <button class="tab" data-tab="build">Build Resume</button>
             </nav>
         </header>
 
@@ -110,67 +109,102 @@
             <div id="testimonial-list" class="card-list"></div>
         </section>
 
-        <!-- Selection Tab -->
-        <section id="tab-selection" class="tab-content">
-            <h2>Selection</h2>
-            <div class="selection-form">
-                <label for="job-description">Target Job Description</label>
-                <textarea id="job-description" rows="6" placeholder="Paste the job description you're applying for..."></textarea>
+        <!-- Build Resume Tab -->
+        <section id="tab-build" class="tab-content">
+          <div class="build-layout">
+            <!-- LEFT SIDEBAR -->
+            <aside class="build-sidebar" id="build-sidebar">
+              <div class="build-sidebar-inner">
+                <!-- Workflow stepper -->
+                <div class="workflow-stepper" id="workflow-stepper">
+                  <div class="stepper-step active" data-step="1">
+                    <span class="stepper-num">1</span>
+                    <span class="stepper-label">Paste Job Description</span>
+                  </div>
+                  <div class="stepper-step" data-step="2">
+                    <span class="stepper-num">2</span>
+                    <span class="stepper-label">Select Items</span>
+                  </div>
+                  <div class="stepper-step" data-step="3">
+                    <span class="stepper-num">3</span>
+                    <span class="stepper-label">Generate</span>
+                  </div>
+                  <div class="stepper-step" data-step="4">
+                    <span class="stepper-num">4</span>
+                    <span class="stepper-label">Review & Analyze</span>
+                  </div>
+                  <div class="stepper-step" data-step="5">
+                    <span class="stepper-num">5</span>
+                    <span class="stepper-label">Download</span>
+                  </div>
+                </div>
 
+                <!-- Job description -->
+                <div class="sidebar-section">
+                  <label for="job-description">Target Job Description</label>
+                  <textarea id="job-description" rows="5" placeholder="Paste the job description..."></textarea>
+                </div>
+
+                <!-- AI Provider -->
                 <div class="provider-selector" id="provider-selector">
-                    <label for="ai-provider">AI Provider</label>
-                    <select id="ai-provider">
-                        <option value="">Loading...</option>
-                    </select>
+                  <label for="ai-provider">AI Provider</label>
+                  <select id="ai-provider"><option value="">Loading...</option></select>
                 </div>
 
-                <div class="auto-select-row">
-                    <button class="btn btn-selection" id="auto-select-btn" type="button">Auto-Select</button>
+                <!-- Action buttons -->
+                <div class="sidebar-actions">
+                  <button class="btn btn-selection" id="auto-select-btn" type="button" disabled>Auto-Select</button>
+                  <button class="btn btn-primary btn-selection" id="selection-btn" disabled>Generate</button>
+                  <button class="btn btn-primary btn-selection" id="analyze-resume-btn" disabled>Analyze Resume</button>
+                  <button class="btn btn-primary btn-selection" id="download-pdf-btn" disabled>Download PDF</button>
                 </div>
+              </div>
+            </aside>
 
+            <!-- Mobile drawer toggle (FAB) -->
+            <button class="build-drawer-toggle" id="build-drawer-toggle" aria-label="Toggle sidebar">&#9776;</button>
+
+            <!-- RIGHT MAIN CONTENT -->
+            <div class="build-main" id="build-main">
+              <!-- Checkboxes -->
+              <div id="build-selection-area">
                 <div class="selection-columns">
-                    <div class="selection-col">
-                        <h3>Select Experience</h3>
-                        <div id="experience-checkboxes" class="checkbox-list"></div>
-                    </div>
-                    <div class="selection-col">
-                        <h3>Select Projects</h3>
-                        <div id="project-checkboxes" class="checkbox-list"></div>
-                    </div>
+                  <div class="selection-col">
+                    <h3>Select Experience</h3>
+                    <div id="experience-checkboxes" class="checkbox-list"></div>
+                  </div>
+                  <div class="selection-col">
+                    <h3>Select Projects</h3>
+                    <div id="project-checkboxes" class="checkbox-list"></div>
+                  </div>
                 </div>
+              </div>
 
-                <button class="btn btn-primary btn-selection" id="selection-btn">Generate</button>
-            </div>
-
-            <div id="selection-results" class="results hidden">
+              <!-- Pipeline progress -->
+              <div id="selection-results" class="results hidden">
                 <div id="results-content"></div>
-            </div>
+              </div>
 
-        </section>
-
-        <!-- Preview Tab -->
-        <section id="tab-preview" class="tab-content">
-            <h2>Preview</h2>
-            <div id="holistic-findings-bar" class="holistic-findings-bar hidden"></div>
-            <div id="editable-results">
+              <!-- Generated results -->
+              <div id="holistic-findings-bar" class="holistic-findings-bar hidden"></div>
+              <div id="editable-results">
                 <div id="result-objective" class="result-slot hidden"></div>
                 <div id="result-experiences" class="result-slot hidden"></div>
                 <div id="result-projects" class="result-slot hidden"></div>
                 <div id="result-curated-skills" class="result-slot hidden"></div>
-            </div>
-            <div id="analyze-resume-container" class="analyze-resume-container hidden">
-                <button class="btn btn-primary" id="analyze-resume-btn">Analyze Resume</button>
-            </div>
-            <div id="download-pdf-container" class="download-pdf-container hidden">
-                <button class="btn btn-primary" id="download-pdf-btn">Download PDF</button>
-            </div>
-            <p id="preview-empty" class="empty-state">No generated content yet. Go to the Selection tab to create resume content.</p>
-            <div id="analyzer-apply-bar" class="analyzer-apply-bar hidden">
+              </div>
+
+              <p id="preview-empty" class="empty-state">Select experiences and projects, then click Generate to build your resume.</p>
+
+              <!-- Sticky apply bar -->
+              <div id="analyzer-apply-bar" class="analyzer-apply-bar hidden">
                 <div class="analyzer-apply-bar-inner">
-                    <span class="analyzer-apply-summary"></span>
-                    <button class="btn btn-primary analyzer-apply-btn">Apply Accepted Changes</button>
+                  <span class="analyzer-apply-summary"></span>
+                  <button class="btn btn-primary analyzer-apply-btn">Apply Accepted Changes</button>
                 </div>
+              </div>
             </div>
+          </div>
         </section>
     </div>
 

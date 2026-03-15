@@ -30,7 +30,15 @@ document.querySelectorAll('.tab').forEach(tab => {
         if (tab.dataset.tab === 'personal' && typeof loadPersonalInfo === 'function') {
             loadPersonalInfo();
         }
-        if (tab.dataset.tab === 'selection' && typeof loadSelectionCheckboxes === 'function') {
+        // Toggle wider container for build tab
+        const container = document.querySelector('.container');
+        if (tab.dataset.tab === 'build') {
+            container.classList.add('build-active');
+        } else {
+            container.classList.remove('build-active');
+        }
+
+        if (tab.dataset.tab === 'build' && typeof loadSelectionCheckboxes === 'function') {
             loadSelectionCheckboxes();
         }
     });

@@ -15,10 +15,8 @@
 
     const previewEmpty = document.getElementById('preview-empty');
     const downloadPdfBtn = document.getElementById('download-pdf-btn');
-    const downloadPdfContainer = document.getElementById('download-pdf-container');
 
     const analyzeBtn = document.getElementById('analyze-resume-btn');
-    const analyzeContainer = document.getElementById('analyze-resume-container');
     const holisticBar = document.getElementById('holistic-findings-bar');
     const applyBar = document.getElementById('analyzer-apply-bar');
 
@@ -55,14 +53,14 @@
         resultProjectsSlot.classList.add('hidden');
         resultCuratedSkillsSlot.innerHTML = '';
         resultCuratedSkillsSlot.classList.add('hidden');
-        downloadPdfContainer.classList.add('hidden');
+        downloadPdfBtn.disabled = true;
         analyzerFindings = [];
-        analyzeContainer.classList.add('hidden');
+        analyzeBtn.disabled = true;
         holisticBar.innerHTML = '';
         holisticBar.classList.add('hidden');
         applyBar.classList.add('hidden');
         clearAllItemFindings();
-        document.getElementById('tab-preview').classList.remove('analyzer-active');
+        document.getElementById('tab-build').classList.remove('analyzer-active');
     }
 
     function populateEditableItems(section, rankedItems, bulletsMap) {
@@ -149,6 +147,8 @@
                     </label>
                 `).join('')
                 : '<p class="empty-state">No projects added yet.</p>';
+            updateButtonStates();
+            updateStepper(deriveWorkflowStep());
         } catch (err) {
             expCheckboxes.innerHTML = '<p class="empty-state">Failed to load.</p>';
             projCheckboxes.innerHTML = '<p class="empty-state">Failed to load.</p>';
@@ -184,6 +184,8 @@
             projCheckboxes.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 cb.checked = selectedProjIds.has(cb.value);
             });
+            updateButtonStates();
+            updateStepper(deriveWorkflowStep());
         } catch (err) {
             alert('Auto-select failed: ' + (err.message || err));
         } finally {
@@ -446,9 +448,10 @@
             if (editableResults.experiences.length) renderEditableSection('experiences');
             if (editableResults.projects.length) renderEditableSection('projects');
             renderEditableCuratedSkills();
-            downloadPdfContainer.classList.remove('hidden');
-            analyzeContainer.classList.remove('hidden');
-            document.querySelector('.tab[data-tab="preview"]').click();
+            downloadPdfBtn.disabled = false;
+            analyzeBtn.disabled = false;
+            updateButtonStates();
+            updateStepper(deriveWorkflowStep());
 
         } catch (err) {
             pipelineState = {
@@ -1436,7 +1439,7 @@
         holisticBar.innerHTML = '';
         holisticBar.classList.add('hidden');
         applyBar.classList.add('hidden');
-        document.getElementById('tab-preview').classList.remove('analyzer-active');
+        document.getElementById('tab-build').classList.remove('analyzer-active');
 
         const items = [];
         for (const section of ['experiences', 'projects']) {
@@ -1487,7 +1490,21 @@
                 status: 'pending',
             }));
 
-            analyzerFindings = [...perItemFindings, ...holisticFindings];
+            // Deduplicate: per-item findings take priority over holistic for same target
+            const perItemKeys = new Set();
+            perItemFindings.forEach(f => {
+                const t = f.target || {};
+                if (t.section) {
+                    perItemKeys.add(`${t.section}|${t.item_key ?? ''}|${t.index ?? ''}`);
+                }
+            });
+            const dedupedHolistic = holisticFindings.filter(f => {
+                const t = f.target || {};
+                if (!t.section) return true;
+                const key = `${t.section}|${t.item_key ?? ''}|${t.index ?? ''}`;
+                return !perItemKeys.has(key);
+            });
+            analyzerFindings = [...perItemFindings, ...dedupedHolistic];
             renderAnalyzerResults();
         } catch (err) {
             alert('Analysis failed: ' + err.message);
@@ -1521,7 +1538,8 @@
 
         const sectionLabel = section === 'experiences' ? 'Experience' : 'Project';
 
-        if (finding.type === 'remove_skill' || finding.type === 'rewrite_bullet' || finding.type === 'remove_bullet') {
+        if (finding.type === 'remove_skill' || finding.type === 'rewrite_bullet' || finding.type === 'remove_bullet'
+            || finding.type === 'add_bullet' || finding.type === 'add_skill') {
             const itemPart = itemLabel ? `${sectionLabel}: ${itemLabel}` : sectionLabel;
             if (index != null) {
                 const kind = finding.type.includes('skill') ? 'Skill' : 'Bullet';
@@ -1543,11 +1561,11 @@
             holisticBar.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:0.9rem;">No issues found. Your resume looks good!</div>';
             holisticBar.classList.remove('hidden');
             applyBar.classList.add('hidden');
-            document.getElementById('tab-preview').classList.remove('analyzer-active');
+            document.getElementById('tab-build').classList.remove('analyzer-active');
             return;
         }
 
-        document.getElementById('tab-preview').classList.add('analyzer-active');
+        document.getElementById('tab-build').classList.add('analyzer-active');
 
         // Render holistic findings into holistic bar
         const holistic = analyzerFindings.filter(f => f.pass === 'holistic');
@@ -1580,8 +1598,8 @@
 
     function renderFindingCard(f) {
         const location = escapeHtml(getLocationLabel(f));
-        const isGeneral = f.type === 'general';
         const isRemoval = f.type === 'remove_bullet' || f.type === 'remove_skill' || f.type === 'remove_curated_skill';
+        const isAddition = f.type === 'add_bullet' || f.type === 'add_skill';
 
         let html = `<div class="analyzer-finding" data-finding-id="${f.id}" data-status="${f.status}">`;
         html += `<div class="finding-header">`;
@@ -1590,15 +1608,21 @@
         html += `</div>`;
         html += `<div class="finding-problem">${escapeHtml(f.problem || '')}</div>`;
 
-        if (isGeneral) {
-            if (f.suggestion) {
-                html += `<div class="finding-general-suggestion">${escapeHtml(f.suggestion)}</div>`;
-            }
-            html += `<div class="finding-actions">
-                <button class="finding-dismiss">Dismiss</button>
-            </div>`;
-        } else if (isRemoval) {
+        if (isRemoval) {
             html += `<div class="finding-remove-label">Remove this item</div>`;
+            html += `<div class="finding-actions">
+                <button class="finding-accept">Accept</button>
+                <button class="finding-reject">Reject</button>
+            </div>`;
+        } else if (isAddition) {
+            if (f.type === 'add_bullet') {
+                html += `<div class="finding-suggestion">
+                    <label>Add bullet</label>
+                    <textarea class="finding-edit">${escapeHtml(f.suggestion || '')}</textarea>
+                </div>`;
+            } else {
+                html += `<div class="finding-add-label">Add skill: ${escapeHtml(f.suggestion || '')}</div>`;
+            }
             html += `<div class="finding-actions">
                 <button class="finding-accept">Accept</button>
                 <button class="finding-reject">Reject</button>
@@ -1626,7 +1650,7 @@
         const btn = applyBar.querySelector('.analyzer-apply-btn');
         const summary = applyBar.querySelector('.analyzer-apply-summary');
         if (!btn) return;
-        const acceptedCount = analyzerFindings.filter(f => f.status === 'accepted' && f.type !== 'general').length;
+        const acceptedCount = analyzerFindings.filter(f => f.status === 'accepted').length;
         const pendingCount = analyzerFindings.filter(f => f.status === 'pending').length;
         btn.disabled = acceptedCount === 0;
         btn.textContent = acceptedCount > 0
@@ -1637,7 +1661,7 @@
         }
     }
 
-    document.getElementById('tab-preview').addEventListener('click', (e) => {
+    document.getElementById('build-main').addEventListener('click', (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
 
@@ -1656,13 +1680,10 @@
             finding.status = finding.status === 'rejected' ? 'pending' : 'rejected';
             card.dataset.status = finding.status;
             updateApplyButton();
-        } else if (btn.classList.contains('finding-dismiss')) {
-            finding.status = finding.status === 'rejected' ? 'pending' : 'rejected';
-            card.dataset.status = finding.status;
         }
     });
 
-    document.getElementById('tab-preview').addEventListener('input', (e) => {
+    document.getElementById('build-main').addEventListener('input', (e) => {
         if (!e.target.classList.contains('finding-edit')) return;
         const card = e.target.closest('.analyzer-finding');
         if (!card) return;
@@ -1682,11 +1703,12 @@
     }
 
     function applyAcceptedFindings() {
-        const accepted = analyzerFindings.filter(f => f.status === 'accepted' && f.type !== 'general');
+        const accepted = analyzerFindings.filter(f => f.status === 'accepted');
         if (!accepted.length) return;
 
         const rewrites = accepted.filter(f => f.type === 'rewrite_bullet' || f.type === 'rewrite_objective');
         const removals = accepted.filter(f => f.type === 'remove_bullet' || f.type === 'remove_skill' || f.type === 'remove_curated_skill');
+        const additions = accepted.filter(f => f.type === 'add_bullet' || f.type === 'add_skill');
 
         // Build removal conflict set
         const removalSet = new Set();
@@ -1760,6 +1782,43 @@
             }
         }
 
+        // Apply additions
+        for (const f of additions) {
+            const t = f.target || {};
+            const effectiveSuggestion = f._editedSuggestion !== undefined ? f._editedSuggestion : f.suggestion;
+            if (!effectiveSuggestion) continue;
+
+            if (f.type === 'add_bullet') {
+                const section = t.section;
+                const itemIdx = findItemIndex(section, t.item_key);
+                if (itemIdx === -1) continue;
+                editableResults[section][itemIdx].bullets.push(effectiveSuggestion);
+            } else if (f.type === 'add_skill') {
+                if (t.section === 'curatedSkills') {
+                    const already = editableResults.curatedSkills.some(
+                        s => s.name.toLowerCase() === effectiveSuggestion.toLowerCase()
+                    );
+                    if (!already) {
+                        editableResults.curatedSkills.push({ name: effectiveSuggestion, type: 'tool' });
+                    }
+                } else {
+                    const section = t.section;
+                    const itemIdx = findItemIndex(section, t.item_key);
+                    if (itemIdx === -1) continue;
+                    const skills = editableResults[section][itemIdx].skills;
+                    const already = skills.some(s => s.toLowerCase() === effectiveSuggestion.toLowerCase());
+                    if (!already) {
+                        skills.push(effectiveSuggestion);
+                        editableResults[section][itemIdx].classified_skills.push({
+                            name: effectiveSuggestion,
+                            category: 'tool',
+                            subcategory: null,
+                        });
+                    }
+                }
+            }
+        }
+
         // Clear findings and re-render (inject functions find no findings)
         analyzerFindings = [];
         renderEditableObjective();
@@ -1771,7 +1830,9 @@
         holisticBar.innerHTML = '';
         holisticBar.classList.add('hidden');
         applyBar.classList.add('hidden');
-        document.getElementById('tab-preview').classList.remove('analyzer-active');
+        document.getElementById('tab-build').classList.remove('analyzer-active');
+        updateButtonStates();
+        updateStepper(deriveWorkflowStep());
     }
 
     // --- Download PDF ---
@@ -1779,6 +1840,7 @@
     downloadPdfBtn.addEventListener('click', async () => {
         downloadPdfBtn.disabled = true;
         downloadPdfBtn.textContent = 'Generating PDF...';
+        updateStepper(5);
 
         try {
             const response = await fetch('api/?route=export-pdf', {
@@ -1817,4 +1879,76 @@
     attachEditableHandlers(resultExperiencesSlot, 'experiences');
     attachEditableHandlers(resultProjectsSlot, 'projects');
     attachCuratedSkillsHandlers();
+
+    // --- Smart button states ---
+
+    function updateButtonStates() {
+        const hasJd = document.getElementById('job-description').value.trim().length > 0;
+        const hasChecked =
+            expCheckboxes.querySelectorAll('input:checked').length > 0 ||
+            projCheckboxes.querySelectorAll('input:checked').length > 0;
+        const hasContent = editableResults.objective ||
+            editableResults.experiences.length > 0 ||
+            editableResults.projects.length > 0;
+
+        autoSelectBtn.disabled = !hasJd;
+        generateBtn.disabled = !hasChecked;
+        analyzeBtn.disabled = !hasContent;
+        downloadPdfBtn.disabled = !hasContent;
+    }
+
+    document.getElementById('job-description').addEventListener('input', () => {
+        updateButtonStates();
+        updateStepper(deriveWorkflowStep());
+    });
+
+    document.getElementById('build-main').addEventListener('change', (e) => {
+        if (e.target.matches('input[type="checkbox"]')) {
+            updateButtonStates();
+            updateStepper(deriveWorkflowStep());
+        }
+    });
+
+    // --- Workflow stepper ---
+
+    function updateStepper(step) {
+        document.querySelectorAll('#workflow-stepper .stepper-step').forEach(el => {
+            const s = parseInt(el.dataset.step);
+            el.classList.remove('active', 'completed');
+            if (s < step) el.classList.add('completed');
+            else if (s === step) el.classList.add('active');
+        });
+    }
+
+    function deriveWorkflowStep() {
+        const hasJd = document.getElementById('job-description').value.trim().length > 0;
+        const hasChecked =
+            expCheckboxes.querySelectorAll('input:checked').length > 0 ||
+            projCheckboxes.querySelectorAll('input:checked').length > 0;
+        const hasContent = editableResults.objective ||
+            editableResults.experiences.length > 0 ||
+            editableResults.projects.length > 0;
+        if (!hasJd) return 1;
+        if (!hasChecked) return 2;
+        if (!hasContent) return 3;
+        return 4;
+    }
+
+    // --- Mobile drawer toggle ---
+
+    const drawerToggle = document.getElementById('build-drawer-toggle');
+    const sidebar = document.getElementById('build-sidebar');
+    if (drawerToggle && sidebar) {
+        const overlay = document.createElement('div');
+        overlay.className = 'build-drawer-overlay';
+        document.body.appendChild(overlay);
+        drawerToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('drawer-open');
+            overlay.classList.toggle('open');
+        });
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('drawer-open');
+            overlay.classList.remove('open');
+        });
+    }
 })();

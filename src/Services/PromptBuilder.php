@@ -487,6 +487,162 @@ Respond ONLY with the JSON object, no additional text.
 PROMPT;
     }
 
+    public function analyzePerItem(array $jobAnalysis, string $objective, array $items, array $curatedSkills): string
+    {
+        $analysisJson = json_encode($jobAnalysis, JSON_PRETTY_PRINT);
+        $itemsBlock = $this->formatItemsForAnalysis($items);
+
+        $curatedBlock = '';
+        foreach ($curatedSkills as $i => $skill) {
+            $curatedBlock .= "[{$i}] {$skill}\n";
+        }
+
+        return <<<PROMPT
+You are a professional resume reviewer. Analyze the following resume content for quality issues.
+
+JOB ANALYSIS:
+{$analysisJson}
+
+OBJECTIVE:
+{$objective}
+
+RESUME ITEMS:
+{$itemsBlock}
+
+CURATED SKILLS:
+{$curatedBlock}
+
+Respond with a JSON object:
+{
+  "findings": [
+    {
+      "severity": "error|warning|info",
+      "type": "rewrite_bullet|rewrite_objective|remove_bullet|remove_skill|remove_curated_skill",
+      "target": {
+        "section": "experiences|projects|objective|curatedSkills",
+        "item_key": "exp_1|proj_2|null",
+        "index": 0
+      },
+      "problem": "Human-readable description of the issue",
+      "suggestion": "Complete replacement text for rewrites, or null for removals"
+    }
+  ]
+}
+
+Rules:
+- Examine each bullet for: AI-typical language (e.g., "leveraged", "spearheaded" used generically), weak or passive verbs, vague claims without specifics, missing quantification where data could exist, fabricated-sounding metrics, content irrelevant to the target job, grammar issues.
+- Examine each item's skills for: skills not mentioned in any of that item's bullets, skills irrelevant to the target job.
+- Examine the objective for: generic language, AI buzzwords, missing key qualifications from the job.
+- Examine curated skills for: skills that do not appear in any resume bullet, redundant or competing skills.
+- "type" must be one of: rewrite_bullet, rewrite_objective, remove_bullet, remove_skill, remove_curated_skill.
+- For rewrites, "suggestion" must be the complete replacement text. For removals, "suggestion" must be null.
+- Do NOT fabricate metrics or numbers in suggestions — only rephrase using information present in the original text.
+- "target.index" is the 0-based index of the bullet, skill, or curated skill. For objective, set index to null.
+- "target.item_key" is the key shown in brackets (e.g., "exp_1"). For objective and curatedSkills, set item_key to null.
+- Return at most 15 findings.
+- Only flag genuine issues. If the content is good, return fewer findings or an empty array.
+
+Respond ONLY with the JSON object, no additional text.
+PROMPT;
+    }
+
+    public function analyzeHolistic(array $jobAnalysis, string $objective, array $items, array $curatedSkills): string
+    {
+        $analysisJson = json_encode($jobAnalysis, JSON_PRETTY_PRINT);
+        $itemsBlock = $this->formatItemsForAnalysis($items);
+
+        $curatedBlock = '';
+        foreach ($curatedSkills as $i => $skill) {
+            $curatedBlock .= "[{$i}] {$skill}\n";
+        }
+
+        return <<<PROMPT
+You are a senior resume strategist. Perform a cross-cutting analysis of the following resume content. Focus ONLY on issues that span multiple items — do NOT repeat per-item issues.
+
+JOB ANALYSIS:
+{$analysisJson}
+
+OBJECTIVE:
+{$objective}
+
+RESUME ITEMS:
+{$itemsBlock}
+
+CURATED SKILLS:
+{$curatedBlock}
+
+Respond with a JSON object:
+{
+  "findings": [
+    {
+      "severity": "error|warning|info",
+      "type": "rewrite_bullet|rewrite_objective|remove_bullet|remove_skill|remove_curated_skill|general",
+      "target": {
+        "section": "experiences|projects|objective|curatedSkills",
+        "item_key": "exp_1|proj_2|null",
+        "index": 0
+      },
+      "problem": "Description of the cross-cutting issue",
+      "suggestion": "Complete replacement text for rewrites, advisory text for general, null for removals"
+    }
+  ]
+}
+
+Rules:
+- Only report cross-cutting issues:
+  1. Repeated themes or accomplishments across different items
+  2. Overused action verbs (e.g., "Developed" starting 4+ bullets across items)
+  3. Inconsistent technology narrative across items
+  4. Missing coverage of critical job requirements not addressed by any item
+  5. Overall balance issues (too many similar items, missing diversity)
+  6. Skill list vs. bullet content misalignment (skills listed but never demonstrated)
+- When a cross-cutting issue can be fixed by rewriting or removing specific bullets/skills, emit one finding per target with the appropriate actionable type (rewrite_bullet, rewrite_objective, remove_bullet, remove_skill, remove_curated_skill).
+- Use "general" only for issues that cannot be resolved by editing a specific bullet, skill, or objective (e.g., missing coverage that would require inventing new content).
+- For rewrites, "suggestion" must be the complete replacement text. For removals, "suggestion" must be null. For general, "suggestion" is advisory text.
+- Do NOT fabricate metrics, numbers, or claims in suggestions — only rephrase using information already present in the original text.
+- "target.index" is the 0-based index of the bullet, skill, or curated skill within its parent item. For objective, set index to null.
+- "target.item_key" is the key shown in brackets (e.g., "exp_1"). For objective and curatedSkills, set item_key to null.
+- Return at most 15 findings.
+- If no cross-cutting issues exist, return an empty findings array.
+
+Respond ONLY with the JSON object, no additional text.
+PROMPT;
+    }
+
+    private function formatItemsForAnalysis(array $items): string
+    {
+        $lines = [];
+        foreach ($items as $item) {
+            $key = $item['key'] ?? 'unknown';
+            $label = $item['label'] ?? $key;
+            $type = $item['type'] ?? 'unknown';
+            $section = $item['section'] ?? 'experiences';
+
+            $lines[] = "[{$key}] {$label} ({$type})";
+
+            $skills = $item['skills'] ?? [];
+            if (!empty($skills)) {
+                $indexed = [];
+                foreach ($skills as $i => $s) {
+                    $indexed[] = "[{$i}] {$s}";
+                }
+                $lines[] = "  Skills: " . implode(', ', $indexed);
+            }
+
+            $bullets = $item['bullets'] ?? [];
+            if (!empty($bullets)) {
+                $lines[] = "  Bullets:";
+                foreach ($bullets as $i => $b) {
+                    $lines[] = "    [{$i}] {$b}";
+                }
+            }
+
+            $lines[] = '';
+        }
+
+        return implode("\n", $lines);
+    }
+
     public function atsCheck(array $jobAnalysis, array $allBullets, string $objective): string
     {
         $analysisJson = json_encode($jobAnalysis, JSON_PRETTY_PRINT);

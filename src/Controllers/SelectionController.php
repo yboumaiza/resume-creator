@@ -34,6 +34,7 @@ class SelectionController
         $step = $_GET['step'] ?? '';
 
         match ($step) {
+            'unload-model'  => $this->unloadModel(),
             'analyze-jd'    => $this->analyzeJd(),
             'filter-skills' => $this->filterSkills(),
             'sort-skills'   => $this->sortSkills(),
@@ -41,6 +42,8 @@ class SelectionController
             'curate-skills' => $this->curateSkills(),
             'objective'     => $this->generateObjective(),
             'ats-check'     => $this->atsCheck(),
+            'analyze-per-item' => $this->analyzePerItem(),
+            'analyze-holistic' => $this->analyzeHolistic(),
             default         => $this->respondError(400, 'Invalid or missing step parameter'),
         };
     }
@@ -49,6 +52,16 @@ class SelectionController
     {
         $providers = AiServiceFactory::getAvailableProviders();
         echo json_encode(['success' => true, 'providers' => $providers]);
+    }
+
+    private function unloadModel(): void
+    {
+        if ($this->ai instanceof OllamaService) {
+            $this->ai->unloadModel();
+            $this->respondSuccess(['unloaded' => true]);
+        } else {
+            $this->respondSuccess(['unloaded' => false]);
+        }
     }
 
     private function analyzeJd(): void
@@ -375,6 +388,54 @@ class SelectionController
         try {
             $result = $this->ai->generate($prompt);
             $this->respondSuccess(['ats_result' => $result]);
+        } catch (AiException $e) {
+            $this->respondAiError($e);
+        }
+    }
+
+    private function analyzePerItem(): void
+    {
+        $data = $this->requestData;
+
+        if (empty($data['job_analysis']) || !isset($data['objective']) || empty($data['items']) || !isset($data['curated_skills'])) {
+            $this->respondError(400, 'Missing job_analysis, objective, items, or curated_skills');
+            return;
+        }
+
+        $prompt = $this->prompts->analyzePerItem(
+            $data['job_analysis'],
+            $data['objective'],
+            $data['items'],
+            $data['curated_skills']
+        );
+
+        try {
+            $result = $this->ai->generate($prompt);
+            $this->respondSuccess(['per_item_findings' => $result['findings'] ?? []]);
+        } catch (AiException $e) {
+            $this->respondAiError($e);
+        }
+    }
+
+    private function analyzeHolistic(): void
+    {
+        $data = $this->requestData;
+
+        if (empty($data['job_analysis']) || !isset($data['objective']) || empty($data['items']) || !isset($data['curated_skills'])) {
+            $this->respondError(400, 'Missing job_analysis, objective, items, or curated_skills');
+            return;
+        }
+
+        $prompt = $this->prompts->analyzeHolistic(
+            $data['job_analysis'],
+            $data['objective'],
+            $data['items'],
+            $data['curated_skills']
+        );
+
+        try {
+            $result = $this->ai->generate($prompt);
+            $this->respondSuccess(['holistic_findings' => $result['findings'] ?? []]);
         } catch (AiException $e) {
             $this->respondAiError($e);
         }

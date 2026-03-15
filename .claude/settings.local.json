@@ -21,7 +21,9 @@
       "Bash(grep -r \"aggregate.*skill\\\\|collect.*skill\\\\|dedup\\\\|limit\" /c/xampp/htdocs/resume/src --include=\"*.php\" 2>/dev/null | head -20)",
       "Bash(php -l src/Services/PromptBuilder.php && php -l src/Controllers/SelectionController.php && php -l src/Controllers/PdfController.php)",
       "Bash(node -c js/selection.js)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)"
     ]
   }
 }

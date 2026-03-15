@@ -13,6 +13,26 @@ class OllamaService implements AiServiceInterface
         $this->timeout = Config::get('ollama.timeout', 120);
     }
 
+    public function unloadModel(): void
+    {
+        $payload = json_encode([
+            'model' => $this->model,
+            'keep_alive' => 0,
+        ]);
+
+        $ch = curl_init($this->baseUrl . '/api/generate');
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_TIMEOUT => 5,
+        ]);
+
+        curl_exec($ch);
+        curl_close($ch);
+    }
+
     public function generate(string $prompt): array
     {
         $payload = json_encode([

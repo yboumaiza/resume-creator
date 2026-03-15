@@ -16,13 +16,20 @@
     const downloadPdfBtn = document.getElementById('download-pdf-btn');
     const downloadPdfContainer = document.getElementById('download-pdf-container');
 
+    const analyzeBtn = document.getElementById('analyze-resume-btn');
+    const analyzeContainer = document.getElementById('analyze-resume-container');
+    const holisticBar = document.getElementById('holistic-findings-bar');
+    const applyBar = document.getElementById('analyzer-apply-bar');
+
     let experiences = [];
     let projects = [];
 
     // --- Editable state ---
 
+    let analyzerFindings = [];
     let cachedJobAnalysis = null;
     let cachedSelectedExpIds = [];
+    let pipelineState = null;
 
     const editableResults = {
         objective: '',
@@ -38,6 +45,7 @@
         editableResults.curatedSkills = [];
         cachedJobAnalysis = null;
         cachedSelectedExpIds = [];
+        pipelineState = null;
         resultObjectiveSlot.innerHTML = '';
         resultObjectiveSlot.classList.add('hidden');
         resultExperiencesSlot.innerHTML = '';
@@ -47,6 +55,13 @@
         resultCuratedSkillsSlot.innerHTML = '';
         resultCuratedSkillsSlot.classList.add('hidden');
         downloadPdfContainer.classList.add('hidden');
+        analyzerFindings = [];
+        analyzeContainer.classList.add('hidden');
+        holisticBar.innerHTML = '';
+        holisticBar.classList.add('hidden');
+        applyBar.classList.add('hidden');
+        clearAllItemFindings();
+        document.getElementById('tab-preview').classList.remove('analyzer-active');
     }
 
     function populateEditableItems(section, rankedItems, bulletsMap) {
@@ -255,61 +270,164 @@
         resetEditableResults();
         generateBtn.disabled = true;
 
+        await runPipeline(null, jobDescription, selectedExpIds, selectedProjIds);
+
+        generateBtn.disabled = false;
+    });
+
+    function appendResumeButton() {
+        const failedIcons = resultsContent.querySelectorAll('.step-error-icon');
+        if (!failedIcons.length) return;
+        const failedStep = failedIcons[failedIcons.length - 1].closest('.pipeline-step');
+        const body = failedStep.querySelector('.step-body');
+
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-primary btn-resume';
+        btn.innerHTML = '&#9654; Resume from here';
+        btn.addEventListener('click', handleResume);
+        body.appendChild(btn);
+    }
+
+    async function handleResume() {
+        if (!pipelineState) return;
+
+        const currentJd = document.getElementById('job-description').value.trim();
+        const currentExpIds = Array.from(expCheckboxes.querySelectorAll('input:checked')).map(cb => parseInt(cb.value));
+        const currentProjIds = Array.from(projCheckboxes.querySelectorAll('input:checked')).map(cb => parseInt(cb.value));
+
+        const inputsChanged = (
+            currentJd !== pipelineState.inputs.jobDescription ||
+            JSON.stringify([...currentExpIds].sort()) !== JSON.stringify([...pipelineState.inputs.selectedExpIds].sort()) ||
+            JSON.stringify([...currentProjIds].sort()) !== JSON.stringify([...pipelineState.inputs.selectedProjIds].sort())
+        );
+
+        if (inputsChanged) {
+            if (!confirm('Inputs have changed since generation started. Resuming may produce inconsistent results.\n\nClick OK to resume anyway, or Cancel to start fresh with Generate.')) {
+                return;
+            }
+        }
+
+        const failedIcons = resultsContent.querySelectorAll('.step-error-icon');
+        if (failedIcons.length) {
+            failedIcons[failedIcons.length - 1].closest('.pipeline-step').remove();
+        }
+
+        generateBtn.disabled = true;
+        await runPipeline(
+            pipelineState,
+            pipelineState.inputs.jobDescription,
+            pipelineState.inputs.selectedExpIds,
+            pipelineState.inputs.selectedProjIds
+        );
+        generateBtn.disabled = false;
+    }
+
+    async function runPipeline(resumeFrom, jobDescription, selectedExpIds, selectedProjIds) {
+        const phases = ['analyzeJd'];
+        if (selectedExpIds.length) phases.push('expFilterSort', 'expBullets');
+        if (selectedProjIds.length) phases.push('projFilterSort', 'projBullets');
+        phases.push('curateSkills', 'objective');
+
+        const startPhaseIdx = resumeFrom ? phases.indexOf(resumeFrom.failedPhase) : 0;
+
+        let jobAnalysis = resumeFrom?.jobAnalysis ?? null;
+        let allBullets = resumeFrom ? { ...resumeFrom.allBullets } : {};
+        let expRanked = resumeFrom?.expRanked ?? null;
+        let expBullets = resumeFrom?.expBullets ?? null;
+        let projRanked = resumeFrom?.projRanked ?? null;
+        let projBullets = resumeFrom?.projBullets ?? null;
+        let stepNum = resumeFrom?.stepNum ?? 1;
+
+        const inputs = { jobDescription, selectedExpIds: [...selectedExpIds], selectedProjIds: [...selectedProjIds] };
+        let currentPhase = null;
+
         try {
-            // Step 1: Analyze JD
-            const jobAnalysis = await runAnalyzeJd(jobDescription);
-            cachedJobAnalysis = jobAnalysis;
-            cachedSelectedExpIds = selectedExpIds;
-
-            let allBullets = {};
-            let stepNum = 2;
-
-            // Experience group
-            if (selectedExpIds.length) {
-                appendStepGroup('Experience');
-                const expRanked = await runFilterSort(jobAnalysis, selectedExpIds, 'experience', stepNum);
-                stepNum++;
-                const expBullets = await runBullets(jobAnalysis, expRanked, allBullets, 'experience', stepNum);
-                Object.assign(allBullets, expBullets);
-                stepNum++;
-
-                populateEditableItems('experiences', expRanked, expBullets);
+            if (!resumeFrom) {
+                await selectionApi('unload-model', {}).catch(() => {});
             }
 
-            // Project group
-            if (selectedProjIds.length) {
-                appendStepGroup('Projects');
-                const projRanked = await runFilterSort(jobAnalysis, selectedProjIds, 'project', stepNum);
-                stepNum++;
-                const projBullets = await runBullets(jobAnalysis, projRanked, allBullets, 'project', stepNum);
-                Object.assign(allBullets, projBullets);
-                stepNum++;
+            for (let pi = startPhaseIdx; pi < phases.length; pi++) {
+                currentPhase = phases[pi];
+                const isResumedPhase = pi === startPhaseIdx && resumeFrom != null;
+                const itemStartIdx = isResumedPhase ? (resumeFrom.failedItemIndex || 0) : 0;
 
-                populateEditableItems('projects', projRanked, projBullets);
+                switch (currentPhase) {
+                    case 'analyzeJd':
+                        stepNum = 1;
+                        jobAnalysis = await runAnalyzeJd(jobDescription);
+                        cachedJobAnalysis = jobAnalysis;
+                        cachedSelectedExpIds = selectedExpIds;
+                        stepNum = 2;
+                        break;
+
+                    case 'expFilterSort':
+                        if (!isResumedPhase) appendStepGroup('Experience');
+                        expRanked = await runFilterSort(jobAnalysis, selectedExpIds, 'experience', stepNum,
+                            itemStartIdx, isResumedPhase ? (resumeFrom.expRanked || []) : []);
+                        stepNum++;
+                        break;
+
+                    case 'expBullets':
+                        expBullets = await runBullets(jobAnalysis, expRanked, allBullets, 'experience', stepNum,
+                            itemStartIdx, isResumedPhase ? (resumeFrom.expBullets || {}) : {});
+                        Object.assign(allBullets, expBullets);
+                        populateEditableItems('experiences', expRanked, expBullets);
+                        stepNum++;
+                        break;
+
+                    case 'projFilterSort':
+                        if (!isResumedPhase) appendStepGroup('Projects');
+                        projRanked = await runFilterSort(jobAnalysis, selectedProjIds, 'project', stepNum,
+                            itemStartIdx, isResumedPhase ? (resumeFrom.projRanked || []) : []);
+                        stepNum++;
+                        break;
+
+                    case 'projBullets':
+                        projBullets = await runBullets(jobAnalysis, projRanked, allBullets, 'project', stepNum,
+                            itemStartIdx, isResumedPhase ? (resumeFrom.projBullets || {}) : {});
+                        Object.assign(allBullets, projBullets);
+                        populateEditableItems('projects', projRanked, projBullets);
+                        stepNum++;
+                        break;
+
+                    case 'curateSkills':
+                        await runCurateSkills(jobAnalysis, stepNum);
+                        stepNum++;
+                        break;
+
+                    case 'objective':
+                        await runObjective(jobAnalysis, allBullets, selectedExpIds, stepNum);
+                        break;
+                }
             }
 
-            // Curate Skills (global)
-            await runCurateSkills(jobAnalysis, stepNum);
-            stepNum++;
-
-            // Objective
-            await runObjective(jobAnalysis, allBullets, selectedExpIds, stepNum);
-
-            // Render results in Preview tab and switch to it
+            // Success — clear resume state, render preview
+            pipelineState = null;
             if (previewEmpty) previewEmpty.classList.add('hidden');
             renderEditableObjective();
             if (editableResults.experiences.length) renderEditableSection('experiences');
             if (editableResults.projects.length) renderEditableSection('projects');
             renderEditableCuratedSkills();
             downloadPdfContainer.classList.remove('hidden');
+            analyzeContainer.classList.remove('hidden');
             document.querySelector('.tab[data-tab="preview"]').click();
 
         } catch (err) {
-            // Pipeline halted — error already shown in the failing step
-        } finally {
-            generateBtn.disabled = false;
+            pipelineState = {
+                inputs,
+                failedPhase: currentPhase,
+                failedItemIndex: err._failedItemIndex || 0,
+                jobAnalysis,
+                allBullets: { ...allBullets },
+                expRanked: (currentPhase === 'expFilterSort' && err._partialResult) ? err._partialResult : expRanked,
+                expBullets: (currentPhase === 'expBullets' && err._partialResult) ? err._partialResult : expBullets,
+                projRanked: (currentPhase === 'projFilterSort' && err._partialResult) ? err._partialResult : projRanked,
+                projBullets: (currentPhase === 'projBullets' && err._partialResult) ? err._partialResult : projBullets,
+                stepNum,
+            };
+            appendResumeButton();
         }
-    });
+    }
 
     // --- Analyze JD ---
 
@@ -357,16 +475,18 @@
 
     // --- Filter & sort skills ---
 
-    async function runFilterSort(jobAnalysis, itemIds, typeName, stepNum) {
+    async function runFilterSort(jobAnalysis, itemIds, typeName, stepNum, startIndex = 0, priorItems = []) {
         const typeLabel = typeName === 'experience' ? 'Experience' : 'Projects';
-        const stepEl = appendStep(`Step ${stepNum}: ${typeLabel} \u2014 Filter & sort skills...`);
+        const stepEl = appendStep(`Step ${stepNum}: ${typeLabel} \u2014 Filter & sort skills${startIndex > 0 ? ' (resuming)' : ''}...`);
         const body = getStepBody(stepEl);
-        const items = [];
+        const items = [...priorItems];
+        let lastIndex = startIndex;
 
         try {
             const total = itemIds.length;
 
-            for (let i = 0; i < itemIds.length; i++) {
+            for (let i = startIndex; i < itemIds.length; i++) {
+                lastIndex = i;
                 const id = itemIds[i];
                 updateStepStatus(stepEl, `Filtering ${i + 1}/${total}...`);
 
@@ -409,6 +529,8 @@
             completeStep(stepEl, false);
             return items;
         } catch (err) {
+            err._failedItemIndex = lastIndex;
+            err._partialResult = [...items];
             failStep(stepEl, err.message, err.detail);
             throw err;
         }
@@ -416,15 +538,17 @@
 
     // --- Generate bullets ---
 
-    async function runBullets(jobAnalysis, rankedItems, previousBullets, typeName, stepNum) {
+    async function runBullets(jobAnalysis, rankedItems, previousBullets, typeName, stepNum, startIndex = 0, priorBullets = {}) {
         const typeLabel = typeName === 'experience' ? 'Experience' : 'Projects';
-        const stepEl = appendStep(`Step ${stepNum}: ${typeLabel} \u2014 Generate bullets...`);
+        const stepEl = appendStep(`Step ${stepNum}: ${typeLabel} \u2014 Generate bullets${startIndex > 0 ? ' (resuming)' : ''}...`);
         const body = getStepBody(stepEl);
-        const newBullets = {};
-        const currentBullets = Object.assign({}, previousBullets);
+        const newBullets = { ...priorBullets };
+        const currentBullets = Object.assign({}, previousBullets, priorBullets);
+        let lastIndex = startIndex;
 
         try {
-            for (let i = 0; i < rankedItems.length; i++) {
+            for (let i = startIndex; i < rankedItems.length; i++) {
+                lastIndex = i;
                 const item = rankedItems[i];
                 updateStepStatus(stepEl, `Item ${i + 1}/${rankedItems.length}...`);
 
@@ -447,6 +571,8 @@
             completeStep(stepEl, false);
             return newBullets;
         } catch (err) {
+            err._failedItemIndex = lastIndex;
+            err._partialResult = { ...newBullets };
             failStep(stepEl, err.message, err.detail);
             throw err;
         }
@@ -520,15 +646,15 @@
 
         let html = `<h4 class="result-section-title">${sectionLabel}</h4>`;
         items.forEach((entry, idx) => {
-            html += renderEditableItemCard(entry, section, idx);
+            html += renderEditableItemCard(entry, section, idx, idx === 0, idx === items.length - 1);
         });
 
         slot.innerHTML = html;
         slot.classList.remove('hidden');
-        attachEditableHandlers(slot, section);
+        injectItemFindings(section);
     }
 
-    function renderEditableItemCard(entry, section, idx) {
+    function renderEditableItemCard(entry, section, idx, isFirst, isLast) {
         const title = entry.type === 'experience'
             ? `${escapeHtml(entry.item.title)} \u2014 ${escapeHtml(entry.item.company)}`
             : escapeHtml(entry.item.name);
@@ -578,9 +704,14 @@
                 <div class="editable-item-header">
                     <div class="editable-item-title">${title}</div>
                     <div class="editable-item-header-actions">
-                        <button class="btn btn-sm item-regenerate" data-section="${section}" data-item="${idx}" title="Regenerate">&#8635; Regenerate</button>
                         <div class="ranked-item-score ${scoreClass}">${score}</div>
                     </div>
+                </div>
+                <div class="editable-item-actions">
+                    ${!isFirst ? `<button class="btn btn-sm item-move-up" data-section="${section}" data-item="${idx}" title="Move up">&uarr; Move Up</button>` : ''}
+                    ${!isLast ? `<button class="btn btn-sm item-move-down" data-section="${section}" data-item="${idx}" title="Move down">&darr; Move Down</button>` : ''}
+                    <button class="btn btn-sm item-regenerate" data-section="${section}" data-item="${idx}" title="Regenerate">&#8635; Regenerate</button>
+                    <button class="btn btn-sm btn-danger item-delete" data-section="${section}" data-item="${idx}" title="Remove">&times; Remove</button>
                 </div>
                 <div class="editable-item-skills">
                     <h5>Skills</h5>
@@ -658,6 +789,8 @@
                 closeModal();
             });
         });
+
+        injectObjectiveFindings();
     }
 
     // --- Editable curated skills ---
@@ -696,7 +829,7 @@
             </div>
         `;
         resultCuratedSkillsSlot.classList.remove('hidden');
-        attachCuratedSkillsHandlers();
+        injectCuratedSkillsFindings();
     }
 
     function attachCuratedSkillsHandlers() {
@@ -881,6 +1014,27 @@
                 return;
             }
 
+            // Delete item
+            if (btn.classList.contains('item-delete')) {
+                const itemIdx = parseInt(btn.dataset.item);
+                deleteItem(section, itemIdx);
+                return;
+            }
+
+            // Move item up
+            if (btn.classList.contains('item-move-up')) {
+                const itemIdx = parseInt(btn.dataset.item);
+                moveItem(section, itemIdx, -1);
+                return;
+            }
+
+            // Move item down
+            if (btn.classList.contains('item-move-down')) {
+                const itemIdx = parseInt(btn.dataset.item);
+                moveItem(section, itemIdx, 1);
+                return;
+            }
+
             // Regenerate item
             if (btn.classList.contains('item-regenerate')) {
                 const itemIdx = parseInt(btn.dataset.item);
@@ -961,6 +1115,35 @@
         }
     }
 
+    // --- Item-level actions ---
+
+    function deleteItem(section, itemIdx) {
+        const entry = editableResults[section][itemIdx];
+        const name = entry.type === 'experience'
+            ? `${entry.item.title} \u2014 ${entry.item.company}`
+            : entry.item.name;
+
+        openModal('Remove Item', `<p>Remove <strong>${escapeHtml(name)}</strong> from the resume?</p>`, () => {
+            editableResults[section].splice(itemIdx, 1);
+            const slot = section === 'experiences' ? resultExperiencesSlot : resultProjectsSlot;
+            if (editableResults[section].length === 0) {
+                slot.innerHTML = '';
+                slot.classList.add('hidden');
+            } else {
+                renderEditableSection(section);
+            }
+            closeModal();
+        }, 'Remove');
+    }
+
+    function moveItem(section, itemIdx, direction) {
+        const items = editableResults[section];
+        const newIdx = itemIdx + direction;
+        if (newIdx < 0 || newIdx >= items.length) return;
+        [items[itemIdx], items[newIdx]] = [items[newIdx], items[itemIdx]];
+        renderEditableSection(section);
+    }
+
     // --- Mutation functions ---
 
     function rerenderItem(section, itemIdx) {
@@ -968,15 +1151,20 @@
         const oldCard = slot.querySelector(`.editable-item-card[data-item="${itemIdx}"]`);
         if (!oldCard) return;
         const entry = editableResults[section][itemIdx];
+        const total = editableResults[section].length;
         const temp = document.createElement('div');
-        temp.innerHTML = renderEditableItemCard(entry, section, itemIdx);
+        temp.innerHTML = renderEditableItemCard(entry, section, itemIdx, itemIdx === 0, itemIdx === total - 1);
         oldCard.replaceWith(temp.firstElementChild);
+        injectSingleItemFindings(section, itemIdx);
     }
 
     // Skills
 
     function deleteSkill(section, itemIdx, skillIdx) {
-        editableResults[section][itemIdx].skills.splice(skillIdx, 1);
+        const removedSkill = editableResults[section][itemIdx].skills.splice(skillIdx, 1)[0];
+        const cs = editableResults[section][itemIdx].classified_skills;
+        const csIdx = cs.findIndex(c => c.name.toLowerCase() === removedSkill.toLowerCase());
+        if (csIdx !== -1) cs.splice(csIdx, 1);
         rerenderItem(section, itemIdx);
     }
 
@@ -999,6 +1187,9 @@
             const val = document.querySelector('#modal-form [name="skill-value"]').value.trim();
             if (val) {
                 editableResults[section][itemIdx].skills[skillIdx] = val;
+                const cs = editableResults[section][itemIdx].classified_skills;
+                const csEntry = cs.find(c => c.name.toLowerCase() === current.toLowerCase());
+                if (csEntry) csEntry.name = val;
                 rerenderItem(section, itemIdx);
             }
             closeModal();
@@ -1044,6 +1235,9 @@
 
             if (newSkills.length > 0) {
                 editableResults[section][itemIdx].skills.push(...newSkills);
+                for (const s of newSkills) {
+                    editableResults[section][itemIdx].classified_skills.push({ name: s, type: 'tool' });
+                }
                 rerenderItem(section, itemIdx);
             }
             closeModal();
@@ -1098,6 +1292,450 @@
         });
     }
 
+    // --- Analyzer inject utilities ---
+
+    function clearAllItemFindings() {
+        document.querySelectorAll('.item-findings-section').forEach(el => el.remove());
+        document.querySelectorAll('.has-findings').forEach(el => el.classList.remove('has-findings'));
+    }
+
+    function getFindingsForTarget(section, itemKey) {
+        return analyzerFindings.filter(f => {
+            if (f.pass !== 'per_item') return false;
+            const t = f.target || {};
+            if (t.section !== section) return false;
+            if (section === 'objective' || section === 'curatedSkills') return true;
+            return t.item_key === itemKey;
+        });
+    }
+
+    function renderItemFindingsSection(findings) {
+        if (!findings.length) return '';
+        let html = '<div class="item-findings-section">';
+        html += `<div class="item-findings-header">${findings.length} finding${findings.length !== 1 ? 's' : ''}</div>`;
+        findings.forEach(f => { html += renderFindingCard(f); });
+        html += '</div>';
+        return html;
+    }
+
+    function injectItemFindings(section) {
+        if (!analyzerFindings.length) return;
+        const slot = section === 'experiences' ? resultExperiencesSlot : resultProjectsSlot;
+        editableResults[section].forEach((entry, idx) => {
+            const card = slot.querySelector(`.editable-item-card[data-item="${idx}"]`);
+            if (!card) return;
+            const next = card.nextElementSibling;
+            if (next && next.classList.contains('item-findings-section')) next.remove();
+            const findings = getFindingsForTarget(section, entry.key);
+            if (findings.length) {
+                card.classList.add('has-findings');
+                card.insertAdjacentHTML('afterend', renderItemFindingsSection(findings));
+            } else {
+                card.classList.remove('has-findings');
+            }
+        });
+    }
+
+    function injectSingleItemFindings(section, itemIdx) {
+        if (!analyzerFindings.length) return;
+        const slot = section === 'experiences' ? resultExperiencesSlot : resultProjectsSlot;
+        const card = slot.querySelector(`.editable-item-card[data-item="${itemIdx}"]`);
+        if (!card) return;
+        const next = card.nextElementSibling;
+        if (next && next.classList.contains('item-findings-section')) next.remove();
+        const entry = editableResults[section][itemIdx];
+        const findings = getFindingsForTarget(section, entry.key);
+        if (findings.length) {
+            card.classList.add('has-findings');
+            card.insertAdjacentHTML('afterend', renderItemFindingsSection(findings));
+        } else {
+            card.classList.remove('has-findings');
+        }
+    }
+
+    function injectObjectiveFindings() {
+        if (!analyzerFindings.length) return;
+        const card = resultObjectiveSlot.querySelector('.editable-objective-card');
+        if (!card) return;
+        const next = card.nextElementSibling;
+        if (next && next.classList.contains('item-findings-section')) next.remove();
+        const findings = getFindingsForTarget('objective', null);
+        if (findings.length) {
+            card.classList.add('has-findings');
+            card.insertAdjacentHTML('afterend', renderItemFindingsSection(findings));
+        } else {
+            card.classList.remove('has-findings');
+        }
+    }
+
+    function injectCuratedSkillsFindings() {
+        if (!analyzerFindings.length) return;
+        const card = resultCuratedSkillsSlot.querySelector('.curated-skills-card');
+        if (!card) return;
+        const next = card.nextElementSibling;
+        if (next && next.classList.contains('item-findings-section')) next.remove();
+        const findings = getFindingsForTarget('curatedSkills', null);
+        if (findings.length) {
+            card.classList.add('has-findings');
+            card.insertAdjacentHTML('afterend', renderItemFindingsSection(findings));
+        } else {
+            card.classList.remove('has-findings');
+        }
+    }
+
+    // --- Resume Analyzer ---
+
+    analyzeBtn.addEventListener('click', async () => {
+        if (!cachedJobAnalysis) {
+            alert('No job analysis cached. Please run the full generation first.');
+            return;
+        }
+
+        analyzeBtn.disabled = true;
+        analyzeBtn.textContent = 'Analyzing...';
+        analyzerFindings = [];
+        clearAllItemFindings();
+        holisticBar.innerHTML = '';
+        holisticBar.classList.add('hidden');
+        applyBar.classList.add('hidden');
+        document.getElementById('tab-preview').classList.remove('analyzer-active');
+
+        const items = [];
+        for (const section of ['experiences', 'projects']) {
+            for (const entry of editableResults[section]) {
+                const label = entry.type === 'experience'
+                    ? `${entry.item.title} at ${entry.item.company}`
+                    : entry.item.name;
+                items.push({
+                    key: entry.key,
+                    type: entry.type,
+                    section: section,
+                    label: label,
+                    skills: entry.skills || [],
+                    bullets: entry.bullets || [],
+                });
+            }
+        }
+
+        const curatedSkillNames = editableResults.curatedSkills.map(cs => cs.name);
+
+        try {
+            const [perItemResult, holisticResult] = await Promise.all([
+                selectionApi('analyze-per-item', {
+                    job_analysis: cachedJobAnalysis,
+                    objective: editableResults.objective,
+                    items: items,
+                    curated_skills: curatedSkillNames,
+                }),
+                selectionApi('analyze-holistic', {
+                    job_analysis: cachedJobAnalysis,
+                    objective: editableResults.objective,
+                    items: items,
+                    curated_skills: curatedSkillNames,
+                }),
+            ]);
+
+            const perItemFindings = (perItemResult.per_item_findings || []).map((f, i) => ({
+                ...f,
+                id: 'pi_' + i,
+                pass: 'per_item',
+                status: 'pending',
+            }));
+
+            const holisticFindings = (holisticResult.holistic_findings || []).map((f, i) => ({
+                ...f,
+                id: 'h_' + i,
+                pass: 'holistic',
+                status: 'pending',
+            }));
+
+            analyzerFindings = [...perItemFindings, ...holisticFindings];
+            renderAnalyzerResults();
+        } catch (err) {
+            alert('Analysis failed: ' + err.message);
+        } finally {
+            analyzeBtn.disabled = false;
+            analyzeBtn.textContent = 'Analyze Resume';
+        }
+    });
+
+    function getLocationLabel(finding) {
+        const t = finding.target || {};
+        const section = t.section;
+        const itemKey = t.item_key;
+        const index = t.index;
+
+        if (section === 'objective') return 'Objective';
+
+        if (section === 'curatedSkills') {
+            return index != null ? `Curated Skills > [${index}]` : 'Curated Skills';
+        }
+
+        let itemLabel = itemKey || '';
+        if (itemKey && (section === 'experiences' || section === 'projects')) {
+            const entry = editableResults[section]?.find(e => e.key === itemKey);
+            if (entry) {
+                itemLabel = entry.type === 'experience'
+                    ? `${entry.item.title} at ${entry.item.company}`
+                    : entry.item.name;
+            }
+        }
+
+        const sectionLabel = section === 'experiences' ? 'Experience' : 'Project';
+
+        if (finding.type === 'remove_skill' || finding.type === 'rewrite_bullet' || finding.type === 'remove_bullet') {
+            const itemPart = itemLabel ? `${sectionLabel}: ${itemLabel}` : sectionLabel;
+            if (index != null) {
+                const kind = finding.type.includes('skill') ? 'Skill' : 'Bullet';
+                return `${itemPart} > ${kind} ${index}`;
+            }
+            return itemPart;
+        }
+
+        if (itemLabel) return `${sectionLabel}: ${itemLabel}`;
+        return sectionLabel;
+    }
+
+    function renderAnalyzerResults() {
+        clearAllItemFindings();
+        holisticBar.innerHTML = '';
+        holisticBar.classList.add('hidden');
+
+        if (!analyzerFindings.length) {
+            holisticBar.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:0.9rem;">No issues found. Your resume looks good!</div>';
+            holisticBar.classList.remove('hidden');
+            applyBar.classList.add('hidden');
+            document.getElementById('tab-preview').classList.remove('analyzer-active');
+            return;
+        }
+
+        document.getElementById('tab-preview').classList.add('analyzer-active');
+
+        // Render holistic findings into holistic bar
+        const holistic = analyzerFindings.filter(f => f.pass === 'holistic');
+        if (holistic.length) {
+            const counts = { error: 0, warning: 0, info: 0 };
+            analyzerFindings.forEach(f => { if (counts[f.severity] !== undefined) counts[f.severity]++; });
+
+            let html = '<div class="holistic-findings-bar-header">';
+            html += '<h4>Cross-Cutting Findings</h4>';
+            html += '<div class="analyzer-summary">';
+            if (counts.error) html += `<span class="badge finding-severity-error">${counts.error} error${counts.error !== 1 ? 's' : ''}</span>`;
+            if (counts.warning) html += `<span class="badge finding-severity-warning">${counts.warning} warning${counts.warning !== 1 ? 's' : ''}</span>`;
+            if (counts.info) html += `<span class="badge finding-severity-info">${counts.info} info</span>`;
+            html += '</div></div>';
+            holistic.forEach(f => { html += renderFindingCard(f); });
+            holisticBar.innerHTML = html;
+            holisticBar.classList.remove('hidden');
+        }
+
+        // Inject per-item findings below their cards
+        injectObjectiveFindings();
+        injectItemFindings('experiences');
+        injectItemFindings('projects');
+        injectCuratedSkillsFindings();
+
+        // Show apply bar
+        applyBar.classList.remove('hidden');
+        updateApplyButton();
+    }
+
+    function renderFindingCard(f) {
+        const location = escapeHtml(getLocationLabel(f));
+        const isGeneral = f.type === 'general';
+        const isRemoval = f.type === 'remove_bullet' || f.type === 'remove_skill' || f.type === 'remove_curated_skill';
+
+        let html = `<div class="analyzer-finding" data-finding-id="${f.id}" data-status="${f.status}">`;
+        html += `<div class="finding-header">`;
+        html += `<span class="finding-severity finding-severity-${f.severity}">${escapeHtml(f.severity)}</span>`;
+        html += `<span class="finding-location">${location}</span>`;
+        html += `</div>`;
+        html += `<div class="finding-problem">${escapeHtml(f.problem || '')}</div>`;
+
+        if (isGeneral) {
+            if (f.suggestion) {
+                html += `<div class="finding-general-suggestion">${escapeHtml(f.suggestion)}</div>`;
+            }
+            html += `<div class="finding-actions">
+                <button class="finding-dismiss">Dismiss</button>
+            </div>`;
+        } else if (isRemoval) {
+            html += `<div class="finding-remove-label">Remove this item</div>`;
+            html += `<div class="finding-actions">
+                <button class="finding-accept">Accept</button>
+                <button class="finding-reject">Reject</button>
+            </div>`;
+        } else {
+            html += `<div class="finding-suggestion">
+                <label>Suggestion</label>
+                <textarea class="finding-edit">${escapeHtml(f.suggestion || '')}</textarea>
+            </div>`;
+            html += `<div class="finding-actions">
+                <button class="finding-accept">Accept</button>
+                <button class="finding-reject">Reject</button>
+            </div>`;
+        }
+
+        html += '</div>';
+        return html;
+    }
+
+    function updateApplyButton() {
+        if (!analyzerFindings.length) {
+            applyBar.classList.add('hidden');
+            return;
+        }
+        const btn = applyBar.querySelector('.analyzer-apply-btn');
+        const summary = applyBar.querySelector('.analyzer-apply-summary');
+        if (!btn) return;
+        const acceptedCount = analyzerFindings.filter(f => f.status === 'accepted' && f.type !== 'general').length;
+        const pendingCount = analyzerFindings.filter(f => f.status === 'pending').length;
+        btn.disabled = acceptedCount === 0;
+        btn.textContent = acceptedCount > 0
+            ? `Apply ${acceptedCount} Accepted Change${acceptedCount !== 1 ? 's' : ''}`
+            : 'Apply Accepted Changes';
+        if (summary) {
+            summary.textContent = `${pendingCount} pending, ${acceptedCount} accepted`;
+        }
+    }
+
+    document.getElementById('tab-preview').addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+
+        const card = btn.closest('.analyzer-finding');
+        if (!card) return;
+
+        const findingId = card.dataset.findingId;
+        const finding = analyzerFindings.find(f => f.id === findingId);
+        if (!finding) return;
+
+        if (btn.classList.contains('finding-accept')) {
+            finding.status = finding.status === 'accepted' ? 'pending' : 'accepted';
+            card.dataset.status = finding.status;
+            updateApplyButton();
+        } else if (btn.classList.contains('finding-reject')) {
+            finding.status = finding.status === 'rejected' ? 'pending' : 'rejected';
+            card.dataset.status = finding.status;
+            updateApplyButton();
+        } else if (btn.classList.contains('finding-dismiss')) {
+            finding.status = finding.status === 'rejected' ? 'pending' : 'rejected';
+            card.dataset.status = finding.status;
+        }
+    });
+
+    document.getElementById('tab-preview').addEventListener('input', (e) => {
+        if (!e.target.classList.contains('finding-edit')) return;
+        const card = e.target.closest('.analyzer-finding');
+        if (!card) return;
+        const finding = analyzerFindings.find(f => f.id === card.dataset.findingId);
+        if (finding) finding._editedSuggestion = e.target.value;
+    });
+
+    applyBar.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (btn && btn.classList.contains('analyzer-apply-btn')) {
+            applyAcceptedFindings();
+        }
+    });
+
+    function findItemIndex(section, itemKey) {
+        return editableResults[section].findIndex(e => e.key === itemKey);
+    }
+
+    function applyAcceptedFindings() {
+        const accepted = analyzerFindings.filter(f => f.status === 'accepted' && f.type !== 'general');
+        if (!accepted.length) return;
+
+        const rewrites = accepted.filter(f => f.type === 'rewrite_bullet' || f.type === 'rewrite_objective');
+        const removals = accepted.filter(f => f.type === 'remove_bullet' || f.type === 'remove_skill' || f.type === 'remove_curated_skill');
+
+        // Build removal conflict set
+        const removalSet = new Set();
+        removals.forEach(f => {
+            const t = f.target || {};
+            removalSet.add(`${t.section}|${t.item_key}|${t.index}`);
+        });
+
+        // Apply rewrites first (skip conflicts with removals)
+        for (const f of rewrites) {
+            const t = f.target || {};
+            const effectiveSuggestion = f._editedSuggestion !== undefined ? f._editedSuggestion : f.suggestion;
+            if (!effectiveSuggestion) continue;
+
+            const conflictKey = `${t.section}|${t.item_key}|${t.index}`;
+            if (removalSet.has(conflictKey)) continue;
+
+            if (f.type === 'rewrite_objective') {
+                editableResults.objective = effectiveSuggestion;
+            } else if (f.type === 'rewrite_bullet') {
+                const section = t.section;
+                const itemIdx = findItemIndex(section, t.item_key);
+                if (itemIdx === -1) continue;
+                if (t.index == null || t.index >= editableResults[section][itemIdx].bullets.length) continue;
+                editableResults[section][itemIdx].bullets[t.index] = effectiveSuggestion;
+            }
+        }
+
+        // Group removals by (section, item_key) and sort descending by index
+        const removalGroups = {};
+        for (const f of removals) {
+            const t = f.target || {};
+            if (f.type === 'remove_curated_skill') {
+                const gk = 'curatedSkills||';
+                if (!removalGroups[gk]) removalGroups[gk] = [];
+                removalGroups[gk].push(f);
+            } else {
+                const gk = `${t.section}|${t.item_key}|`;
+                if (!removalGroups[gk]) removalGroups[gk] = [];
+                removalGroups[gk].push(f);
+            }
+        }
+
+        for (const gk of Object.keys(removalGroups)) {
+            const group = removalGroups[gk];
+            group.sort((a, b) => (b.target?.index ?? 0) - (a.target?.index ?? 0));
+
+            for (const f of group) {
+                const t = f.target || {};
+
+                if (f.type === 'remove_curated_skill') {
+                    if (t.index != null && t.index < editableResults.curatedSkills.length) {
+                        editableResults.curatedSkills.splice(t.index, 1);
+                    }
+                } else if (f.type === 'remove_bullet') {
+                    const section = t.section;
+                    const itemIdx = findItemIndex(section, t.item_key);
+                    if (itemIdx === -1) continue;
+                    if (t.index == null || t.index >= editableResults[section][itemIdx].bullets.length) continue;
+                    editableResults[section][itemIdx].bullets.splice(t.index, 1);
+                } else if (f.type === 'remove_skill') {
+                    const section = t.section;
+                    const itemIdx = findItemIndex(section, t.item_key);
+                    if (itemIdx === -1) continue;
+                    if (t.index == null || t.index >= editableResults[section][itemIdx].skills.length) continue;
+                    const removedSkill = editableResults[section][itemIdx].skills.splice(t.index, 1)[0];
+                    const cs = editableResults[section][itemIdx].classified_skills;
+                    const csIdx = cs.findIndex(c => c.name.toLowerCase() === removedSkill.toLowerCase());
+                    if (csIdx !== -1) cs.splice(csIdx, 1);
+                }
+            }
+        }
+
+        // Clear findings and re-render (inject functions find no findings)
+        analyzerFindings = [];
+        renderEditableObjective();
+        if (editableResults.experiences.length) renderEditableSection('experiences');
+        if (editableResults.projects.length) renderEditableSection('projects');
+        renderEditableCuratedSkills();
+
+        // Clean up
+        holisticBar.innerHTML = '';
+        holisticBar.classList.add('hidden');
+        applyBar.classList.add('hidden');
+        document.getElementById('tab-preview').classList.remove('analyzer-active');
+    }
+
     // --- Download PDF ---
 
     downloadPdfBtn.addEventListener('click', async () => {
@@ -1136,4 +1774,9 @@
             downloadPdfBtn.textContent = 'Download PDF';
         }
     });
+
+    // --- One-time event delegation setup (prevents listener stacking on re-render) ---
+    attachEditableHandlers(resultExperiencesSlot, 'experiences');
+    attachEditableHandlers(resultProjectsSlot, 'projects');
+    attachCuratedSkillsHandlers();
 })();

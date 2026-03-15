@@ -147,17 +147,26 @@
         <!-- Preview Tab -->
         <section id="tab-preview" class="tab-content">
             <h2>Preview</h2>
+            <div id="holistic-findings-bar" class="holistic-findings-bar hidden"></div>
             <div id="editable-results">
                 <div id="result-objective" class="result-slot hidden"></div>
                 <div id="result-experiences" class="result-slot hidden"></div>
                 <div id="result-projects" class="result-slot hidden"></div>
                 <div id="result-curated-skills" class="result-slot hidden"></div>
             </div>
+            <div id="analyze-resume-container" class="analyze-resume-container hidden">
+                <button class="btn btn-primary" id="analyze-resume-btn">Analyze Resume</button>
+            </div>
             <div id="download-pdf-container" class="download-pdf-container hidden">
                 <button class="btn btn-primary" id="download-pdf-btn">Download PDF</button>
             </div>
             <p id="preview-empty" class="empty-state">No generated content yet. Go to the Selection tab to create resume content.</p>
-
+            <div id="analyzer-apply-bar" class="analyzer-apply-bar hidden">
+                <div class="analyzer-apply-bar-inner">
+                    <span class="analyzer-apply-summary"></span>
+                    <button class="btn btn-primary analyzer-apply-btn">Apply Accepted Changes</button>
+                </div>
+            </div>
         </section>
     </div>
 

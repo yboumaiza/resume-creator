@@ -580,6 +580,10 @@ header h1 {
     border-radius: 4px;
 }
 
+.btn-resume {
+    margin-top: 12px;
+}
+
 /* Structured error panel */
 .step-error-panel {
     border-left: 3px solid var(--danger);
@@ -920,6 +924,19 @@ header h1 {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.editable-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 8px;
+    margin-bottom: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.item-delete {
+    margin-left: auto;
 }
 
 .item-regenerate,
@@ -1334,6 +1351,247 @@ header h1 {
     padding: 12px 32px;
     font-size: 1rem;
 }
+
+/* ===== Resume Analyzer ===== */
+
+.analyze-resume-container {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.analyze-resume-container.hidden {
+    display: none;
+}
+
+.analyze-resume-container .btn {
+    padding: 12px 32px;
+    font-size: 1rem;
+}
+
+/* Holistic findings bar */
+.holistic-findings-bar {
+    background: #fffbeb;
+    border: 1px solid #fbbf24;
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 20px;
+}
+.holistic-findings-bar.hidden { display: none; }
+.holistic-findings-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.holistic-findings-bar-header h4 {
+    font-size: 0.95rem;
+    margin: 0;
+    color: #92400e;
+}
+.analyzer-summary {
+    display: flex;
+    gap: 8px;
+}
+
+/* Per-item findings */
+.item-findings-section {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    padding: 12px 16px;
+    margin-top: -12px;
+    margin-bottom: 12px;
+}
+.item-findings-header {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+/* Remove bottom radius from card when findings are attached */
+.editable-item-card.has-findings,
+.editable-objective-card.has-findings,
+.curated-skills-card.has-findings {
+    border-radius: var(--radius) var(--radius) 0 0;
+    margin-bottom: 0;
+}
+
+/* Sticky apply bar */
+.analyzer-apply-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: var(--surface);
+    border-top: 2px solid var(--primary);
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+    padding: 12px 20px;
+}
+.analyzer-apply-bar.hidden { display: none; }
+.analyzer-apply-bar-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.analyzer-apply-summary {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+#tab-preview.analyzer-active { padding-bottom: 80px; }
+
+.analyzer-finding {
+    border-left: 3px solid var(--border);
+    padding: 12px 16px;
+    margin: 8px 16px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    background: var(--bg);
+    transition: border-color 0.2s, opacity 0.2s, background 0.2s;
+}
+
+.analyzer-finding[data-status="accepted"] {
+    border-left-color: #16a34a;
+    background: #f0fdf4;
+}
+
+.analyzer-finding[data-status="rejected"] {
+    border-left-color: var(--border);
+    opacity: 0.5;
+}
+
+.analyzer-finding[data-status="rejected"] .finding-problem {
+    text-decoration: line-through;
+}
+
+.finding-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.finding-severity {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.finding-severity-error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.finding-severity-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.finding-severity-info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.finding-location {
+    font-size: 0.75rem;
+    font-family: monospace;
+    color: var(--text-muted);
+}
+
+.finding-problem {
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.finding-suggestion {
+    margin-bottom: 8px;
+}
+
+.finding-suggestion label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.finding-edit {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 60px;
+}
+
+.finding-edit:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.finding-remove-label {
+    font-size: 0.85rem;
+    color: var(--danger);
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.finding-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.finding-accept {
+    padding: 4px 12px;
+    border: 1px solid #16a34a;
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: #16a34a;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.finding-accept:hover {
+    background: #f0fdf4;
+}
+
+.finding-reject,
+.finding-dismiss {
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.finding-reject:hover,
+.finding-dismiss:hover {
+    background: var(--bg);
+}
+
+.finding-general-suggestion {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
 
 /* Responsive */
 @media (max-width: 768px) {

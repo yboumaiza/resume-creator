@@ -42,13 +42,15 @@ const modalTitle = document.getElementById('modal-title');
 const modalFields = document.getElementById('modal-fields');
 const modalForm = document.getElementById('modal-form');
 
-function openModal(title, fieldsHtml, onSubmit) {
+function openModal(title, fieldsHtml, onSubmit, submitLabel = 'Save') {
     modalTitle.textContent = title;
     modalFields.innerHTML = fieldsHtml;
     modalOverlay.classList.remove('hidden');
 
     // Initialize tag inputs
     modalFields.querySelectorAll('.tag-input-wrapper').forEach(initTagInput);
+
+    modalForm.querySelector('[type="submit"]').textContent = submitLabel;
 
     modalForm.onsubmit = (e) => {
         e.preventDefault();

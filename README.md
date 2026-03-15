@@ -1,22 +1,27 @@
 # Resume Builder
 
-An AI-powered web tool that helps you create tailored resume descriptions and bullet points for job applications. Store your work experience and projects, then use a local LLM to generate descriptions optimized for specific job postings.
+AI-powered resume tailoring with multi-provider AI and LaTeX PDF export.
+
+Store your work history, projects, education, testimonials, and personal info, then run a 10-step AI selection pipeline that analyzes a job description and generates a tailored resume. Switch between Ollama (local), OpenAI, Anthropic, and Gemini as your AI provider. Export the final result as a professionally formatted PDF via LaTeX.
 
 ## Features
 
-- **Work Experience Management** — Add, edit, and delete your job history with descriptions and skill tags
-- **Projects Management** — Store personal, open-source, or side projects with details and skills
-- **AI-Powered Generation** — Paste a target job description and automatically generate tailored bullet points and professional summary
-- **No Cloud Dependency** — Uses a local Ollama instance for complete privacy
-- **Clean SPA Interface** — Tab-based navigation with instant search and copy-to-clipboard functionality
+- **Personal Information** -- Contact details, LinkedIn, portfolio URL, header tagline, and languages with proficiency levels
+- **Education** -- Degrees with school name and date ranges
+- **Work Experience** -- Job history with descriptions, skill tags, and commitment type (full-time, part-time, contract)
+- **Projects** -- Project details with URL and skill tags
+- **Testimonials** -- Quotes with author name, position, company, and LinkedIn URL
+- **AI-Powered Selection Pipeline** -- 10-step tailoring process: job description analysis, skill filtering and classification, bullet point generation, technical skills curation, professional objective with testimonial integration, ATS keyword check, per-item review, and holistic resume assessment
+- **PDF Export** -- LaTeX-based compilation into a professionally formatted resume
 
 ## Tech Stack
 
-- **Frontend** — Vanilla HTML, CSS, JavaScript (no frameworks)
-- **Backend** — PHP 8+ (OOP, no frameworks)
-- **Database** — MySQL 5.7+
-- **LLM** — Ollama (local)
-- **Server** — Apache (XAMPP)
+- **Frontend** -- Vanilla HTML, CSS, JavaScript (no frameworks)
+- **Backend** -- PHP 8+ (OOP, no frameworks)
+- **Database** -- MySQL 5.7+
+- **AI Providers** -- Ollama (local), OpenAI, Anthropic, Gemini
+- **PDF** -- LaTeX (pdflatex)
+- **Server** -- Apache (XAMPP)
 
 ## Prerequisites
 
@@ -24,13 +29,15 @@ An AI-powered web tool that helps you create tailored resume descriptions and bu
    - Download from [apachefriends.org](https://www.apachefriends.org/)
    - Ensure Apache and MySQL are running
 
-2. **Ollama**
+2. **Ollama** (optional if using cloud providers)
    - Download from [ollama.com](https://ollama.com/)
-   - Install and ensure it runs on `localhost:11434` (default)
+   - Runs on `localhost:11434` by default
 
-3. **MySQL Connection Credentials**
-   - Default: `root` / no password
-   - Or configure your existing credentials in `config.php`
+3. **pdflatex** (for PDF export)
+   - Install [MiKTeX](https://miktex.org/), [TeX Live](https://tug.org/texlive/), or any LaTeX distribution that provides `pdflatex`
+
+4. **Cloud AI API Keys** (optional)
+   - OpenAI, Anthropic, or Gemini API keys if you want to use cloud providers instead of Ollama
 
 ## Setup
 
@@ -42,93 +49,191 @@ Open phpMyAdmin (`http://localhost/phpmyadmin`) or use the MySQL CLI:
 mysql -u root -p < schema.sql
 ```
 
-This creates the `resume_tool` database with two tables: `experiences` and `projects`.
+This creates the `resume_tool` database with five tables: `personal_info`, `education`, `experiences`, `projects`, and `testimonials`.
 
 ### 2. Configure the App
 
-Edit `config.php` with your MySQL credentials and Ollama settings:
+Edit `config.php` with your database credentials, Ollama settings, and AI provider preferences:
 
 ```php
 return [
     'db' => [
-        'host' => '127.0.0.1',
+        'host' => 'localhost',
         'port' => 3306,
         'name' => 'resume_tool',
         'user' => 'root',
-        'pass' => '',  // Your MySQL password
+        'pass' => '',
         'charset' => 'utf8mb4',
     ],
     'ollama' => [
         'base_url' => 'http://localhost:11434',
-        'model' => 'llama3',  // or 'mistral', 'neural-chat', etc.
-        'timeout' => 120,     // seconds
+        'model' => 'llama3',
+        'timeout' => 120,
+    ],
+    'ai' => [
+        'default_provider' => 'ollama',
+        'openai'    => ['model' => 'gpt-5.4', 'timeout' => 120],
+        'anthropic' => ['model' => 'claude-haiku-4.5', 'max_tokens' => 4096, 'timeout' => 120],
+        'gemini'    => ['model' => 'gemini-3.1-flash-lite-preview', 'timeout' => 120],
     ],
 ];
 ```
 
-### 3. Install Ollama & Pull a Model
+### 3. Set Up Environment Variables
+
+Copy the example environment file and add your API keys:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your keys:
+
+```
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=AI...
+```
+
+Only the keys for providers you plan to use are required. Ollama needs no API key.
+
+### 4. Install Ollama & Pull a Model
 
 ```bash
 ollama pull llama3
+ollama serve
 ```
 
 For faster inference on CPU, try smaller models:
+
 ```bash
 ollama pull mistral
 ollama pull neural-chat
 ```
 
-Then update `config.php` to use the model name (e.g., `'model' => 'mistral'`).
-
-### 4. Start Ollama
-
-```bash
-ollama serve
-```
-
-It will listen on `http://localhost:11434`.
+Then update the `ollama.model` value in `config.php` accordingly.
 
 ### 5. Open the App
 
 Navigate to:
+
 ```
 http://localhost/resume/
 ```
 
 ## Usage
 
-### Add Work Experience
+### Personal Info
 
-1. Click the **Experience** tab
-2. Click **+ Add Experience**
-3. Fill in company, job title, dates, description, and skills
-4. Click **Save**
+Click the **Personal** tab to enter your name, phone, email, location, LinkedIn, portfolio URL, header tagline, and languages with proficiency levels. This is a singleton record -- saving overwrites the previous entry.
 
-### Add Projects
+### Education
 
-1. Click the **Projects** tab
-2. Click **+ Add Project**
-3. Fill in project name, description, URL (optional), and skills
-4. Click **Save**
+Click the **Education** tab to add degrees with school name and date range. Add, edit, or delete entries as needed.
 
-### Generate Resume Content
+### Experience
 
-1. Click the **Generate** tab
-2. Paste the job description you're applying for
-3. Select the experiences and projects you want to highlight
-4. Click **Generate**
-5. Copy the tailored bullet points and professional summary for each item
+Click the **Experience** tab to manage your job history. Each entry includes company, title, dates, commitment type, a free-text description, and skill tags.
 
-## API Endpoints
+### Projects
+
+Click the **Projects** tab to add personal or professional projects. Each entry includes name, description, optional URL, and skill tags.
+
+### Testimonials
+
+Click the **Testimonials** tab to store recommendation quotes. Each entry includes the author's name, position, company, message, and optional LinkedIn URL.
+
+### Selection (AI Pipeline)
+
+Click the **Selection** tab to run the 10-step AI tailoring pipeline:
+
+1. Paste the target job description
+2. Select which experiences and projects to include
+3. Choose an AI provider from the dropdown
+4. Run each step sequentially -- the pipeline analyzes the JD, filters and ranks skills, generates tailored bullets, curates a technical skills section, writes a professional objective, checks ATS keyword coverage, and reviews each item plus the overall resume
+
+### PDF Export
+
+After running the selection pipeline, click **Export PDF** to compile a LaTeX-based resume. The server generates a `.tex` file from your data and compiled results, runs `pdflatex`, and returns the PDF for download.
+
+## AI Providers
+
+| Provider | Type | Configuration | API Key Required |
+|----------|------|---------------|------------------|
+| Ollama | Local | `config.php` → `ollama` block | No |
+| OpenAI | Cloud | `config.php` → `ai.openai` | Yes (`OPENAI_API_KEY` in `.env`) |
+| Anthropic | Cloud | `config.php` → `ai.anthropic` | Yes (`ANTHROPIC_API_KEY` in `.env`) |
+| Gemini | Cloud | `config.php` → `ai.gemini` | Yes (`GEMINI_API_KEY` in `.env`) |
+
+The default provider is set in `config.php` under `ai.default_provider`. The frontend also lets you switch providers per request.
+
+## Selection Pipeline
+
+| Step | Parameter | Description |
+|------|-----------|-------------|
+| 1 | `unload-model` | Unload LLM from memory (Ollama only) |
+| 2 | `analyze-jd` | Parse job description into structured requirements |
+| 3 | `filter-skills` | Identify relevant skills per item |
+| 4 | `sort-skills` | Rank and classify skills (language/tool/skill + subcategory) |
+| 5 | `bullets` | Generate tailored bullet points per item |
+| 6 | `curate-skills` | Select top 10-15 skills for Technical Skills section |
+| 7 | `objective` | Generate professional objective with testimonial integration |
+| 8 | `ats-check` | ATS keyword coverage analysis |
+| 9 | `analyze-per-item` | Per-item quality review |
+| 10 | `analyze-holistic` | Cross-cutting resume assessment |
+
+## API Reference
 
 All endpoints accept and return JSON. Base URL: `/api/index.php`
+
+### Personal Info
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `?route=personal` | Get personal info |
+| POST | `?route=personal` | Create or update personal info |
+
+**POST Body:**
+```json
+{
+  "full_name": "Jane Doe",
+  "header_text": "Full-Stack Engineer",
+  "phone": "+1-555-123-4567",
+  "location": "New York, NY",
+  "email": "jane@example.com",
+  "linkedin": "https://linkedin.com/in/janedoe",
+  "portfolio": "https://janedoe.dev",
+  "languages": [
+    { "language": "English", "proficiency": "Native" },
+    { "language": "Spanish", "proficiency": "Professional" }
+  ]
+}
+```
+
+### Education
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `?route=education` | List all education entries |
+| POST | `?route=education` | Create education entry |
+| PUT | `?route=education` | Update education entry |
+| DELETE | `?route=education` | Delete education entry |
+
+**POST/PUT Body:**
+```json
+{
+  "degree": "B.Sc. Computer Science",
+  "school": "MIT",
+  "start_date": "2018-09",
+  "end_date": "2022-06"
+}
+```
 
 ### Experiences
 
 | Method | Route | Description |
 |--------|-------|-------------|
 | GET | `?route=experiences` | List all experiences |
-| GET | `?route=experiences&id=N` | Get one experience |
 | POST | `?route=experiences` | Create experience |
 | PUT | `?route=experiences` | Update experience |
 | DELETE | `?route=experiences` | Delete experience |
@@ -140,6 +245,7 @@ All endpoints accept and return JSON. Base URL: `/api/index.php`
   "title": "Software Engineer",
   "start_date": "2022-01-15",
   "end_date": null,
+  "commitment": "Full-time",
   "description": "Developed backend APIs...",
   "skills": ["Python", "FastAPI", "PostgreSQL"]
 }
@@ -150,7 +256,6 @@ All endpoints accept and return JSON. Base URL: `/api/index.php`
 | Method | Route | Description |
 |--------|-------|-------------|
 | GET | `?route=projects` | List all projects |
-| GET | `?route=projects&id=N` | Get one project |
 | POST | `?route=projects` | Create project |
 | PUT | `?route=projects` | Update project |
 | DELETE | `?route=projects` | Delete project |
@@ -159,84 +264,136 @@ All endpoints accept and return JSON. Base URL: `/api/index.php`
 ```json
 {
   "name": "Resume Builder",
-  "description": "AI-powered tool...",
+  "description": "AI-powered tool for tailoring resumes",
   "url": "https://github.com/user/resume-builder",
   "skills": ["PHP", "JavaScript", "MySQL"]
 }
 ```
 
-### Generate
+### Testimonials
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| POST | `?route=generate` | Generate tailored descriptions |
+| GET | `?route=testimonials` | List all testimonials |
+| POST | `?route=testimonials` | Create testimonial |
+| PUT | `?route=testimonials` | Update testimonial |
+| DELETE | `?route=testimonials` | Delete testimonial |
 
-**POST Body:**
+**POST/PUT Body:**
 ```json
 {
+  "name": "John Smith",
+  "position": "Engineering Manager",
+  "company": "Acme Inc",
+  "message": "Jane is an exceptional engineer who...",
+  "linkedin": "https://linkedin.com/in/johnsmith"
+}
+```
+
+### Providers
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `?route=providers` | List available AI providers |
+
+**Response:**
+```json
+{
+  "success": true,
+  "providers": ["ollama", "openai", "anthropic", "gemini"]
+}
+```
+
+### Selection
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `?route=selection&step=<step>` | Run a pipeline step |
+
+The `step` query parameter must be one of the 10 steps listed in the [Selection Pipeline](#selection-pipeline) table.
+
+**Example -- `analyze-jd`:**
+```json
+{
+  "provider": "ollama",
   "job_description": "We are looking for a Senior Engineer with 5+ years of Python experience...",
   "experience_ids": [1, 3],
   "project_ids": [2]
 }
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "items": {
-      "exp_1": [
-        "Designed and deployed microservices reducing latency by 40%",
-        "Led team of 3 engineers in agile environment"
-      ],
-      "proj_2": [
-        "Built full-stack resume generator with AI integration",
-        "Implemented responsive UI without dependencies"
-      ]
-    },
-    "professional_summary": "Experienced full-stack engineer with 7+ years building scalable applications..."
-  }
-}
-```
+See `SelectionController.php` for the full request/response schema of each step.
+
+### PDF Export
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `?route=export-pdf` | Generate and download resume PDF |
+
+Accepts the compiled resume data as JSON. Returns a binary PDF file (`Content-Type: application/pdf`).
 
 ## Project Structure
 
 ```
 resume/
-├── index.html                  # Frontend SPA
-├── config.php                  # Configuration (edit this!)
-├── schema.sql                  # Database schema
+├── index.html                          # Frontend SPA
+├── config.php                          # App configuration
+├── schema.sql                          # Database schema
+├── template.tex                        # LaTeX resume template
+├── resume.cls                          # LaTeX document class
+├── .env.example                        # Environment variable template
 ├── api/
-│   └── index.php               # API bootstrap & router
+│   └── index.php                       # API bootstrap & router
 ├── src/
-│   ├── Config.php              # Config loader
-│   ├── Database.php            # PDO singleton
-│   ├── Router.php              # HTTP router
+│   ├── Config.php                      # Config loader
+│   ├── Database.php                    # PDO singleton
+│   ├── Env.php                         # .env file parser
+│   ├── Router.php                      # HTTP router
+│   ├── Exceptions/
+│   │   └── AiException.php            # AI service exception
 │   ├── Models/
-│   │   ├── Experience.php      # Experience model
-│   │   └── Project.php         # Project model
+│   │   ├── PersonalInfo.php            # Personal info model
+│   │   ├── Education.php               # Education model
+│   │   ├── Experience.php              # Experience model
+│   │   ├── Project.php                 # Project model
+│   │   └── Testimonial.php            # Testimonial model
 │   ├── Controllers/
-│   │   ├── ExperienceController.php
-│   │   ├── ProjectController.php
-│   │   └── GenerateController.php
+│   │   ├── PersonalInfoController.php  # Personal info CRUD
+│   │   ├── EducationController.php     # Education CRUD
+│   │   ├── ExperienceController.php    # Experience CRUD
+│   │   ├── ProjectController.php       # Project CRUD
+│   │   ├── TestimonialController.php   # Testimonial CRUD
+│   │   ├── SelectionController.php     # AI selection pipeline
+│   │   └── PdfController.php          # PDF export endpoint
 │   └── Services/
-│       └── OllamaService.php   # Ollama client
+│       ├── AiServiceInterface.php      # AI provider contract
+│       ├── AiServiceFactory.php        # Provider factory
+│       ├── OllamaService.php           # Ollama client
+│       ├── OpenAiService.php           # OpenAI client
+│       ├── AnthropicService.php        # Anthropic client
+│       ├── GeminiService.php           # Gemini client
+│       ├── PromptBuilder.php           # Prompt templates
+│       ├── LatexBuilder.php            # LaTeX document builder
+│       └── PdfCompiler.php            # pdflatex runner
 ├── css/
-│   └── style.css               # Styling
+│   └── style.css                       # Styling
 └── js/
-    ├── app.js                  # Frontend setup & utilities
-    ├── experience.js           # Experience UI
-    ├── projects.js             # Projects UI
-    └── generate.js             # Generate UI
+    ├── app.js                          # Frontend setup & utilities
+    ├── personal.js                     # Personal info UI
+    ├── education.js                    # Education UI
+    ├── experience.js                   # Experience UI
+    ├── projects.js                     # Projects UI
+    ├── testimonials.js                 # Testimonials UI
+    └── selection.js                    # Selection pipeline UI
 ```
 
 ## Architecture
 
-- **Single-Page App (SPA)** — Three tabs with no page reloads
-- **RESTful API** — Each controller handles a resource (experiences, projects, generation)
-- **OOP Backend** — Models handle data, controllers handle requests, services handle external calls
-- **Modular Design** — Easy to swap out Ollama for OpenAI/Claude by creating a new service class
+- **Single-Page App (SPA)** -- Tab-based navigation with no page reloads
+- **RESTful API** -- Each controller handles one resource via a simple query-string router
+- **OOP Backend** -- Models handle data access, controllers handle HTTP, services handle external integrations
+- **Factory Pattern** -- `AiServiceFactory` creates the active provider from `AiServiceInterface` implementations
+- **LaTeX PDF Pipeline** -- `LatexBuilder` assembles a `.tex` document, `PdfCompiler` runs `pdflatex` and returns the binary
 
 ## Troubleshooting
 
@@ -248,16 +405,25 @@ resume/
 ### "Ollama request failed"
 - Ensure Ollama is running: `ollama serve`
 - Check the model exists: `ollama list`
-- Verify base URL in `config.php` matches Ollama's listening address
+- Verify `ollama.base_url` in `config.php` matches Ollama's listening address
 
 ### "LLM did not return valid JSON"
-- Some models produce inconsistent JSON. Try: `ollama pull llama3.1`
-- Increase timeout in `config.php` if inference is slow on CPU
+- Some models produce inconsistent JSON output -- try a larger model like `llama3.1`
+- Increase `timeout` in `config.php` if inference is slow on CPU
+
+### "pdflatex not found"
+- Install a LaTeX distribution (MiKTeX, TeX Live) and ensure `pdflatex` is on your system PATH
+- Restart Apache after installing so the updated PATH is picked up
+
+### API key errors
+- Verify the key is set in `.env` (not `.env.example`)
+- Check the key is valid and has not expired
+- Ensure the provider's model name in `config.php` is a model your API key has access to
 
 ### Generation is slow
-- Local LLM inference takes 30-120 seconds depending on model and hardware
-- Use a smaller model like `mistral` or `neural-chat`
-- Consider GPU acceleration if available
+- Local Ollama inference can take 30-120 seconds depending on model size and hardware
+- Use a smaller model (`mistral`, `neural-chat`) for faster results
+- Cloud providers (OpenAI, Anthropic, Gemini) are typically faster than local inference
 
 ## License
 

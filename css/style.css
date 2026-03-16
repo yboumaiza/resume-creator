@@ -1688,6 +1688,81 @@ header h1 {
     display: block;
 }
 
+/* ===== Wizard Step Visibility ===== */
+
+/* JD panel hero styles (step 1) */
+.jd-panel {
+    max-width: 700px;
+    margin: 40px auto;
+}
+.jd-panel h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.jd-helper-text { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; }
+.jd-panel textarea {
+    width: 100%; min-height: 200px; padding: 16px;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    font-size: 0.95rem; font-family: inherit; resize: vertical;
+}
+.jd-panel textarea:focus {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Default: hide all sidebar buttons, show per step */
+#tab-build .sidebar-actions .btn { display: none; }
+
+/* Step 1: show only JD panel */
+#tab-build[data-wizard-step="1"] #build-selection-area { display: none !important; }
+#tab-build[data-wizard-step="1"] #selection-results { display: none !important; }
+#tab-build[data-wizard-step="1"] #editable-results { display: none !important; }
+#tab-build[data-wizard-step="1"] #holistic-findings-bar { display: none !important; }
+#tab-build[data-wizard-step="1"] #preview-empty { display: none !important; }
+#tab-build[data-wizard-step="1"] #analyzer-apply-bar { display: none !important; }
+#tab-build[data-wizard-step="1"] #pipeline-empty { display: none !important; }
+#tab-build[data-wizard-step="1"] #wizard-next-btn { display: block; }
+
+/* Step 2: show checkboxes + Auto-Select/Generate buttons */
+#tab-build[data-wizard-step="2"] #step-jd-content { display: none !important; }
+#tab-build[data-wizard-step="2"] #selection-results { display: none !important; }
+#tab-build[data-wizard-step="2"] #editable-results { display: none !important; }
+#tab-build[data-wizard-step="2"] #holistic-findings-bar { display: none !important; }
+#tab-build[data-wizard-step="2"] #preview-empty { display: none !important; }
+#tab-build[data-wizard-step="2"] #analyzer-apply-bar { display: none !important; }
+#tab-build[data-wizard-step="2"] #pipeline-empty { display: none !important; }
+#tab-build[data-wizard-step="2"] #auto-select-btn { display: block; }
+#tab-build[data-wizard-step="2"] #selection-btn { display: block; }
+
+/* Step 3: show pipeline progress (own .hidden class controls initial visibility) */
+#tab-build[data-wizard-step="3"] #step-jd-content { display: none !important; }
+#tab-build[data-wizard-step="3"] #build-selection-area { display: none !important; }
+#tab-build[data-wizard-step="3"] #editable-results { display: none !important; }
+#tab-build[data-wizard-step="3"] #holistic-findings-bar { display: none !important; }
+#tab-build[data-wizard-step="3"] #preview-empty { display: none !important; }
+#tab-build[data-wizard-step="3"] #analyzer-apply-bar { display: none !important; }
+#tab-build[data-wizard-step="3"] .sidebar-actions { display: none !important; }
+
+/* Step 4: show editable results + Analyze/Download/Reset buttons (own .hidden classes still apply) */
+#tab-build[data-wizard-step="4"] #step-jd-content { display: none !important; }
+#tab-build[data-wizard-step="4"] #build-selection-area { display: none !important; }
+#tab-build[data-wizard-step="4"] #pipeline-empty { display: none !important; }
+#tab-build[data-wizard-step="4"] #selection-results { display: none !important; }
+#tab-build[data-wizard-step="4"] #preview-empty { display: none !important; }
+#tab-build[data-wizard-step="4"] #analyze-resume-btn { display: block; }
+#tab-build[data-wizard-step="4"] #download-pdf-btn { display: block; }
+#tab-build[data-wizard-step="4"] #reset-build-btn { display: block; }
+
+/* Clickable stepper */
+.stepper-step.active, .stepper-step.completed { cursor: pointer; }
+.stepper-step.completed:hover, .stepper-step.active:hover {
+    background: rgba(37, 99, 235, 0.05); border-radius: var(--radius);
+}
+
+/* Wizard lock state */
+#tab-build.wizard-locked .stepper-step { pointer-events: none; cursor: default; }
+#tab-build.wizard-locked .build-sidebar select,
+#tab-build.wizard-locked .build-sidebar button {
+    pointer-events: none; opacity: 0.5;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .build-layout {

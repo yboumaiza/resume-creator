@@ -110,39 +110,29 @@
         </section>
 
         <!-- Build Resume Tab -->
-        <section id="tab-build" class="tab-content">
+        <section id="tab-build" class="tab-content" data-wizard-step="1">
           <div class="build-layout">
             <!-- LEFT SIDEBAR -->
             <aside class="build-sidebar" id="build-sidebar">
               <div class="build-sidebar-inner">
                 <!-- Workflow stepper -->
                 <div class="workflow-stepper" id="workflow-stepper">
-                  <div class="stepper-step active" data-step="1">
+                  <div class="stepper-step active" data-step="1" role="button" tabindex="0">
                     <span class="stepper-num">1</span>
                     <span class="stepper-label">Paste Job Description</span>
                   </div>
-                  <div class="stepper-step" data-step="2">
+                  <div class="stepper-step" data-step="2" role="button" tabindex="0">
                     <span class="stepper-num">2</span>
                     <span class="stepper-label">Select Items</span>
                   </div>
-                  <div class="stepper-step" data-step="3">
+                  <div class="stepper-step" data-step="3" role="button" tabindex="0">
                     <span class="stepper-num">3</span>
                     <span class="stepper-label">Generate</span>
                   </div>
-                  <div class="stepper-step" data-step="4">
+                  <div class="stepper-step" data-step="4" role="button" tabindex="0">
                     <span class="stepper-num">4</span>
                     <span class="stepper-label">Review & Analyze</span>
                   </div>
-                  <div class="stepper-step" data-step="5">
-                    <span class="stepper-num">5</span>
-                    <span class="stepper-label">Download</span>
-                  </div>
-                </div>
-
-                <!-- Job description -->
-                <div class="sidebar-section">
-                  <label for="job-description">Target Job Description</label>
-                  <textarea id="job-description" rows="5" placeholder="Paste the job description..."></textarea>
                 </div>
 
                 <!-- AI Provider -->
@@ -153,6 +143,7 @@
 
                 <!-- Action buttons -->
                 <div class="sidebar-actions">
+                  <button class="btn btn-primary btn-selection" id="wizard-next-btn" type="button" disabled>Next</button>
                   <button class="btn btn-selection" id="auto-select-btn" type="button" disabled>Auto-Select</button>
                   <button class="btn btn-primary btn-selection" id="selection-btn" disabled>Generate</button>
                   <button class="btn btn-primary btn-selection" id="analyze-resume-btn" disabled>Analyze Resume</button>
@@ -167,6 +158,15 @@
 
             <!-- RIGHT MAIN CONTENT -->
             <div class="build-main" id="build-main">
+              <!-- Job description (wizard step 1) -->
+              <div id="step-jd-content" class="wizard-panel">
+                <div class="jd-panel">
+                  <h3>Target Job Description</h3>
+                  <p class="jd-helper-text">Paste the job description you're targeting to tailor your resume.</p>
+                  <textarea id="job-description" rows="12" placeholder="Paste the job description..."></textarea>
+                </div>
+              </div>
+
               <!-- Checkboxes -->
               <div id="build-selection-area">
                 <div class="selection-columns">
@@ -185,6 +185,7 @@
               <div id="selection-results" class="results hidden">
                 <div id="results-content"></div>
               </div>
+              <p id="pipeline-empty" class="empty-state hidden">Pipeline log from last generation is no longer available.</p>
 
               <!-- Generated results -->
               <div id="holistic-findings-bar" class="holistic-findings-bar hidden"></div>

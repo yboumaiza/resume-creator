@@ -6,6 +6,7 @@
     const projCheckboxes = document.getElementById('project-checkboxes');
     const providerSelect = document.getElementById('ai-provider');
     const autoSelectBtn = document.getElementById('auto-select-btn');
+    const wizardNextBtn = document.getElementById('wizard-next-btn');
 
     // Editable results DOM refs
     const resultObjectiveSlot = document.getElementById('result-objective');
@@ -22,6 +23,10 @@
 
     let experiences = [];
     let projects = [];
+
+    // --- Wizard state ---
+    let currentWizardStep = 1;
+    let wizardLocked = false;
 
     // --- Editable state ---
 
@@ -204,7 +209,7 @@
                 `).join('')
                 : '<p class="empty-state">No projects added yet.</p>';
             updateButtonStates();
-            updateStepper(deriveWorkflowStep());
+            setWizardStep(deriveWorkflowStep());
 
             // Restore cached state after checkboxes and providers are ready
             restoreFromCache();
@@ -279,7 +284,7 @@
         }
 
         updateButtonStates();
-        updateStepper(deriveWorkflowStep());
+        setWizardStep(deriveWorkflowStep());
     }
 
     // --- Auto-Select ---
@@ -312,7 +317,7 @@
                 cb.checked = selectedProjIds.has(cb.value);
             });
             updateButtonStates();
-            updateStepper(deriveWorkflowStep());
+            updateStepper();
             debouncedSave();
         } catch (err) {
             alert('Auto-select failed: ' + (err.message || err));
@@ -437,6 +442,8 @@
         resultsDiv.classList.remove('hidden');
         resetEditableResults();
         generateBtn.disabled = true;
+        setWizardStep(3);
+        setWizardLocked(true);
 
         await runPipeline(null, jobDescription, selectedExpIds, selectedProjIds);
 
@@ -481,6 +488,7 @@
         }
 
         generateBtn.disabled = true;
+        setWizardLocked(true);
         await runPipeline(
             pipelineState,
             pipelineState.inputs.jobDescription,
@@ -579,7 +587,8 @@
             downloadPdfBtn.disabled = false;
             analyzeBtn.disabled = false;
             updateButtonStates();
-            updateStepper(deriveWorkflowStep());
+            setWizardLocked(false);
+            setWizardStep(4);
 
         } catch (err) {
             pipelineState = {
@@ -594,6 +603,8 @@
                 projBullets: (currentPhase === 'projBullets' && err._partialResult) ? err._partialResult : projBullets,
                 stepNum,
             };
+            setWizardLocked(false);
+            // Stay on step 3 — user sees error + Resume button
             appendResumeButton();
         }
     }
@@ -1567,6 +1578,7 @@
 
         analyzeBtn.disabled = true;
         analyzeBtn.textContent = 'Analyzing...';
+        setWizardLocked(true);
         analyzerFindings = [];
         clearAllItemFindings();
         holisticBar.innerHTML = '';
@@ -1643,6 +1655,7 @@
         } catch (err) {
             alert('Analysis failed: ' + err.message);
         } finally {
+            setWizardLocked(false);
             analyzeBtn.disabled = false;
             analyzeBtn.textContent = 'Analyze Resume';
         }
@@ -1971,7 +1984,7 @@
         applyBar.classList.add('hidden');
         document.getElementById('tab-build').classList.remove('analyzer-active');
         updateButtonStates();
-        updateStepper(deriveWorkflowStep());
+        updateStepper();
     }
 
     // --- Download PDF ---
@@ -1979,7 +1992,6 @@
     downloadPdfBtn.addEventListener('click', async () => {
         downloadPdfBtn.disabled = true;
         downloadPdfBtn.textContent = 'Generating PDF...';
-        updateStepper(5);
 
         try {
             const response = await fetch('api/?route=export-pdf', {
@@ -2030,6 +2042,7 @@
             editableResults.experiences.length > 0 ||
             editableResults.projects.length > 0;
 
+        wizardNextBtn.disabled = !hasJd;
         autoSelectBtn.disabled = !hasJd;
         generateBtn.disabled = !hasChecked;
         analyzeBtn.disabled = !hasContent;
@@ -2038,14 +2051,14 @@
 
     document.getElementById('job-description').addEventListener('input', () => {
         updateButtonStates();
-        updateStepper(deriveWorkflowStep());
+        updateStepper();
         debouncedSave();
     });
 
     document.getElementById('build-main').addEventListener('change', (e) => {
         if (e.target.matches('input[type="checkbox"]')) {
             updateButtonStates();
-            updateStepper(deriveWorkflowStep());
+            updateStepper();
             debouncedSave();
         }
     });
@@ -2056,13 +2069,40 @@
 
     // --- Workflow stepper ---
 
-    function updateStepper(step) {
+    function updateStepper() {
+        const maxReached = deriveWorkflowStep();
         document.querySelectorAll('#workflow-stepper .stepper-step').forEach(el => {
             const s = parseInt(el.dataset.step);
             el.classList.remove('active', 'completed');
-            if (s < step) el.classList.add('completed');
-            else if (s === step) el.classList.add('active');
+            if (s === currentWizardStep) el.classList.add('active');
+            else if (s <= maxReached) el.classList.add('completed');
         });
+    }
+
+    function setWizardStep(step) {
+        if (wizardLocked) return;
+        currentWizardStep = step;
+        document.getElementById('tab-build').setAttribute('data-wizard-step', step);
+        // Show pipeline placeholder on step 3 when pipeline log is empty
+        const pipelineEmpty = document.getElementById('pipeline-empty');
+        if (step === 3 && !resultsContent.children.length) {
+            pipelineEmpty.classList.remove('hidden');
+        } else {
+            pipelineEmpty.classList.add('hidden');
+        }
+        updateStepper();
+        debouncedSave();
+    }
+
+    function setWizardLocked(locked) {
+        wizardLocked = locked;
+        const tabBuild = document.getElementById('tab-build');
+        if (locked) {
+            tabBuild.classList.add('wizard-locked');
+        } else {
+            tabBuild.classList.remove('wizard-locked');
+        }
+        providerSelect.disabled = locked;
     }
 
     function deriveWorkflowStep() {
@@ -2079,6 +2119,23 @@
         return 4;
     }
 
+    // Stepper click handlers
+    document.querySelectorAll('#workflow-stepper .stepper-step').forEach(el => {
+        el.addEventListener('click', () => {
+            if (wizardLocked) return;
+            const target = parseInt(el.dataset.step);
+            const max = deriveWorkflowStep();
+            if (target <= max) setWizardStep(target);
+        });
+    });
+
+    // Wizard Next button
+    wizardNextBtn.addEventListener('click', () => {
+        if (document.getElementById('job-description').value.trim()) {
+            setWizardStep(2);
+        }
+    });
+
     // --- Reset button ---
 
     const resetBuildBtn = document.getElementById('reset-build-btn');
@@ -2092,7 +2149,7 @@
         resultsDiv.classList.add('hidden');
         if (previewEmpty) previewEmpty.classList.remove('hidden');
         updateButtonStates();
-        updateStepper(deriveWorkflowStep());
+        setWizardStep(1);
     });
 
     // --- Mobile drawer toggle ---

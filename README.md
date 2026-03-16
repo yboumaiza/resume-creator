@@ -2,7 +2,7 @@
 
 AI-powered resume tailoring with multi-provider AI and LaTeX PDF export.
 
-Store your work history, projects, education, testimonials, and personal info, then run a 10-step AI selection pipeline that analyzes a job description and generates a tailored resume. Switch between Ollama (local), OpenAI, Anthropic, and Gemini as your AI provider. Export the final result as a professionally formatted PDF via LaTeX.
+Store your work history, projects, education, testimonials, and personal info, then use the Build Resume wizard to auto-select relevant items, run an AI pipeline that analyzes a job description, and generate a tailored resume. Switch between Ollama (local), OpenAI, Anthropic, and Gemini as your AI provider. Export the final result as a professionally formatted PDF via LaTeX.
 
 ## Features
 
@@ -11,7 +11,10 @@ Store your work history, projects, education, testimonials, and personal info, t
 - **Work Experience** -- Job history with descriptions, skill tags, and commitment type (full-time, part-time, contract)
 - **Projects** -- Project details with URL and skill tags
 - **Testimonials** -- Quotes with author name, position, company, and LinkedIn URL
-- **AI-Powered Selection Pipeline** -- 10-step tailoring process: job description analysis, skill filtering and classification, bullet point generation, technical skills curation, professional objective with testimonial integration, ATS keyword check, per-item review, and holistic resume assessment
+- **Auto-Selection** -- AI analyzes the job description and automatically selects the most relevant experiences and projects
+- **AI-Powered Build Resume Wizard** -- 4-step integrated workflow (paste JD, select items, generate via 7-phase pipeline, review & analyze) with a two-column layout and sidebar stepper
+- **State Persistence** -- localStorage auto-save with 500ms debounced writes, automatic restoration on reload, and pipeline failure recovery/resume
+- **Mobile Responsive Build Workflow** -- Drawer-based sidebar navigation on mobile devices with slide-in animation and overlay
 - **PDF Export** -- LaTeX-based compilation into a professionally formatted resume
 
 ## Tech Stack
@@ -143,14 +146,16 @@ Click the **Projects** tab to add personal or professional projects. Each entry 
 
 Click the **Testimonials** tab to store recommendation quotes. Each entry includes the author's name, position, company, message, and optional LinkedIn URL.
 
-### Selection (AI Pipeline)
+### Build Resume
 
-Click the **Selection** tab to run the 10-step AI tailoring pipeline:
+Click the **Build Resume** tab to launch the integrated wizard workflow:
 
-1. Paste the target job description
-2. Select which experiences and projects to include
-3. Choose an AI provider from the dropdown
-4. Run each step sequentially -- the pipeline analyzes the JD, filters and ranks skills, generates tailored bullets, curates a technical skills section, writes a professional objective, checks ATS keyword coverage, and reviews each item plus the overall resume
+1. **Paste Job Description** -- Enter the target job description, then click Next
+2. **Select Items** -- Check the experiences and projects to include, or click **Auto-Select** to let AI pick the most relevant ones based on the job description
+3. **Generate** -- Click Generate to run the 7-phase AI pipeline (analyze JD, filter/sort skills per item, generate bullets, curate technical skills, write objective, ATS check, review). A progress stepper shows each phase in real time. If a phase fails, click **Resume** to retry from that point
+4. **Review & Analyze** -- Edit generated bullets, skills, and objective inline. Run the AI analyzer for per-item and holistic quality feedback
+
+Your progress is automatically saved to localStorage. You can leave the page and return later -- the wizard restores your job description, selections, generated content, and current step.
 
 ### PDF Export
 
@@ -171,6 +176,7 @@ The default provider is set in `config.php` under `ai.default_provider`. The fro
 
 | Step | Parameter | Description |
 |------|-----------|-------------|
+| -- | `auto-select` | AI selects relevant experiences/projects for a job description |
 | 1 | `unload-model` | Unload LLM from memory (Ollama only) |
 | 2 | `analyze-jd` | Parse job description into structured requirements |
 | 3 | `filter-skills` | Identify relevant skills per item |
@@ -310,7 +316,24 @@ All endpoints accept and return JSON. Base URL: `/api/index.php`
 |--------|-------|-------------|
 | POST | `?route=selection&step=<step>` | Run a pipeline step |
 
-The `step` query parameter must be one of the 10 steps listed in the [Selection Pipeline](#selection-pipeline) table.
+The `step` query parameter must be one of the steps listed in the [Selection Pipeline](#selection-pipeline) table.
+
+**Example -- `auto-select`:**
+```json
+{
+  "provider": "ollama",
+  "job_description": "We are looking for a Senior Engineer with 5+ years of Python experience..."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "selected_experience_ids": [1, 3],
+  "selected_project_ids": [2]
+}
+```
 
 **Example -- `analyze-jd`:**
 ```json
@@ -394,6 +417,7 @@ resume/
 - **OOP Backend** -- Models handle data access, controllers handle HTTP, services handle external integrations
 - **Factory Pattern** -- `AiServiceFactory` creates the active provider from `AiServiceInterface` implementations
 - **LaTeX PDF Pipeline** -- `LatexBuilder` assembles a `.tex` document, `PdfCompiler` runs `pdflatex` and returns the binary
+- **Wizard Workflow** -- 4-step progression with localStorage persistence, 500ms debounced auto-save, and pipeline failure recovery
 
 ## Troubleshooting
 

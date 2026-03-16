@@ -831,6 +831,7 @@
 
         slot.innerHTML = html;
         slot.classList.remove('hidden');
+        items.forEach((_, idx) => initSortablesForItem(section, idx));
         injectItemFindings(section);
         debouncedSave();
     }
@@ -845,14 +846,10 @@
         // Skills
         let skillsHtml = '<div class="editable-tags">';
         entry.skills.forEach((s, si) => {
-            const isFirst = si === 0;
-            const isLast = si === entry.skills.length - 1;
             skillsHtml += `
                 <span class="tag editable-tag" data-section="${section}" data-item="${idx}" data-skill="${si}">
                     ${escapeHtml(s)}
                     <span class="tag-actions">
-                        ${!isFirst ? '<button class="tag-action tag-up" title="Move up">&uarr;</button>' : ''}
-                        ${!isLast ? '<button class="tag-action tag-down" title="Move down">&darr;</button>' : ''}
                         <button class="tag-action tag-edit" title="Edit">&#9998;</button>
                         <button class="tag-action tag-delete" title="Delete">&times;</button>
                     </span>
@@ -864,14 +861,10 @@
         // Bullets
         let bulletsHtml = '<ul class="editable-bullets">';
         entry.bullets.forEach((b, bi) => {
-            const isFirst = bi === 0;
-            const isLast = bi === entry.bullets.length - 1;
             bulletsHtml += `
                 <li class="editable-bullet" data-section="${section}" data-item="${idx}" data-bullet="${bi}">
                     <span class="bullet-text">${escapeHtml(b)}</span>
                     <span class="bullet-actions">
-                        ${!isFirst ? '<button class="bullet-action bullet-up" title="Move up">&uarr;</button>' : ''}
-                        ${!isLast ? '<button class="bullet-action bullet-down" title="Move down">&darr;</button>' : ''}
                         <button class="bullet-action bullet-edit" title="Edit">&#9998;</button>
                         <button class="bullet-action bullet-delete" title="Delete">&times;</button>
                     </span>
@@ -984,14 +977,10 @@
 
         let tagsHtml = '<div class="editable-tags">';
         skills.forEach((cs, si) => {
-            const isFirst = si === 0;
-            const isLast = si === skills.length - 1;
             tagsHtml += `
                 <span class="tag editable-tag" data-skill="${si}">
                     ${escapeHtml(cs.name)}
                     <span class="tag-actions">
-                        ${!isFirst ? '<button class="tag-action curated-up" title="Move up">&uarr;</button>' : ''}
-                        ${!isLast ? '<button class="tag-action curated-down" title="Move down">&darr;</button>' : ''}
                         <button class="tag-action curated-edit" title="Edit">&#9998;</button>
                         <button class="tag-action curated-delete" title="Delete">&times;</button>
                     </span>
@@ -1012,6 +1001,7 @@
             </div>
         `;
         resultCuratedSkillsSlot.classList.remove('hidden');
+        initSortableCuratedSkills();
         injectCuratedSkillsFindings();
         debouncedSave();
     }
@@ -1042,18 +1032,6 @@
                         }
                         closeModal();
                     });
-                } else if (btn.classList.contains('curated-up')) {
-                    if (si > 0) {
-                        const skills = editableResults.curatedSkills;
-                        [skills[si], skills[si - 1]] = [skills[si - 1], skills[si]];
-                        renderEditableCuratedSkills();
-                    }
-                } else if (btn.classList.contains('curated-down')) {
-                    const skills = editableResults.curatedSkills;
-                    if (si < skills.length - 1) {
-                        [skills[si], skills[si + 1]] = [skills[si + 1], skills[si]];
-                        renderEditableCuratedSkills();
-                    }
                 }
                 return;
             }
@@ -1160,10 +1138,6 @@
                     deleteSkill(section, itemIdx, skillIdx);
                 } else if (btn.classList.contains('tag-edit')) {
                     editSkillModal(section, itemIdx, skillIdx);
-                } else if (btn.classList.contains('tag-up')) {
-                    moveSkill(section, itemIdx, skillIdx, -1);
-                } else if (btn.classList.contains('tag-down')) {
-                    moveSkill(section, itemIdx, skillIdx, 1);
                 }
                 return;
             }
@@ -1183,10 +1157,6 @@
                     deleteBullet(section, itemIdx, bulletIdx);
                 } else if (btn.classList.contains('bullet-edit')) {
                     editBulletModal(section, itemIdx, bulletIdx);
-                } else if (btn.classList.contains('bullet-up')) {
-                    moveBullet(section, itemIdx, bulletIdx, -1);
-                } else if (btn.classList.contains('bullet-down')) {
-                    moveBullet(section, itemIdx, bulletIdx, 1);
                 }
                 return;
             }
@@ -1339,8 +1309,87 @@
         const temp = document.createElement('div');
         temp.innerHTML = renderEditableItemCard(entry, section, itemIdx, itemIdx === 0, itemIdx === total - 1);
         oldCard.replaceWith(temp.firstElementChild);
+        initSortablesForItem(section, itemIdx);
         injectSingleItemFindings(section, itemIdx);
         debouncedSave();
+    }
+
+    // --- SortableJS initialization ---
+
+    function initSortableBullets(section, itemIdx) {
+        const card = (section === 'experiences' ? resultExperiencesSlot : resultProjectsSlot)
+            .querySelector(`.editable-item-card[data-item="${itemIdx}"]`);
+        if (!card) return;
+        const ul = card.querySelector('.editable-bullets');
+        if (!ul) return;
+        Sortable.create(ul, {
+            animation: 150,
+            handle: '.bullet-text',
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
+            onEnd(evt) {
+                const arr = editableResults[section][itemIdx].bullets;
+                const [moved] = arr.splice(evt.oldIndex, 1);
+                arr.splice(evt.newIndex, 0, moved);
+                ul.querySelectorAll('.editable-bullet').forEach((li, i) => li.dataset.bullet = i);
+                debouncedSave();
+            }
+        });
+    }
+
+    function initSortableSkills(section, itemIdx) {
+        const card = (section === 'experiences' ? resultExperiencesSlot : resultProjectsSlot)
+            .querySelector(`.editable-item-card[data-item="${itemIdx}"]`);
+        if (!card) return;
+        const container = card.querySelector('.editable-tags');
+        if (!container) return;
+        Sortable.create(container, {
+            animation: 150,
+            draggable: '.editable-tag',
+            filter: '.tag-actions',
+            preventOnFilter: false,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
+            onStart() { document.querySelectorAll('.editable-tag.active').forEach(t => t.classList.remove('active')); },
+            onEnd(evt) {
+                const arr = editableResults[section][itemIdx].skills;
+                const [moved] = arr.splice(evt.oldIndex, 1);
+                arr.splice(evt.newIndex, 0, moved);
+                container.querySelectorAll('.editable-tag').forEach((tag, i) => tag.dataset.skill = i);
+                debouncedSave();
+            }
+        });
+    }
+
+    function initSortableCuratedSkills() {
+        const card = resultCuratedSkillsSlot.querySelector('.curated-skills-card');
+        if (!card) return;
+        const container = card.querySelector('.editable-tags');
+        if (!container) return;
+        Sortable.create(container, {
+            animation: 150,
+            draggable: '.editable-tag',
+            filter: '.tag-actions',
+            preventOnFilter: false,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
+            onStart() { document.querySelectorAll('.editable-tag.active').forEach(t => t.classList.remove('active')); },
+            onEnd(evt) {
+                const arr = editableResults.curatedSkills;
+                const [moved] = arr.splice(evt.oldIndex, 1);
+                arr.splice(evt.newIndex, 0, moved);
+                container.querySelectorAll('.editable-tag').forEach((tag, i) => tag.dataset.skill = i);
+                debouncedSave();
+            }
+        });
+    }
+
+    function initSortablesForItem(section, itemIdx) {
+        initSortableBullets(section, itemIdx);
+        initSortableSkills(section, itemIdx);
     }
 
     // Skills
@@ -1350,14 +1399,6 @@
         const cs = editableResults[section][itemIdx].classified_skills;
         const csIdx = cs.findIndex(c => c.name.toLowerCase() === removedSkill.toLowerCase());
         if (csIdx !== -1) cs.splice(csIdx, 1);
-        rerenderItem(section, itemIdx);
-    }
-
-    function moveSkill(section, itemIdx, skillIdx, direction) {
-        const skills = editableResults[section][itemIdx].skills;
-        const newIdx = skillIdx + direction;
-        if (newIdx < 0 || newIdx >= skills.length) return;
-        [skills[skillIdx], skills[newIdx]] = [skills[newIdx], skills[skillIdx]];
         rerenderItem(section, itemIdx);
     }
 
@@ -1433,14 +1474,6 @@
 
     function deleteBullet(section, itemIdx, bulletIdx) {
         editableResults[section][itemIdx].bullets.splice(bulletIdx, 1);
-        rerenderItem(section, itemIdx);
-    }
-
-    function moveBullet(section, itemIdx, bulletIdx, direction) {
-        const bullets = editableResults[section][itemIdx].bullets;
-        const newIdx = bulletIdx + direction;
-        if (newIdx < 0 || newIdx >= bullets.length) return;
-        [bullets[bulletIdx], bullets[newIdx]] = [bullets[newIdx], bullets[bulletIdx]];
         rerenderItem(section, itemIdx);
     }
 
@@ -1652,6 +1685,10 @@
             analyzerFindings = [...perItemFindings, ...dedupedHolistic];
             renderAnalyzerResults();
             debouncedSave();
+            setTimeout(() => {
+                const first = document.querySelector('.analyzer-finding[data-status="pending"]');
+                if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
         } catch (err) {
             alert('Analysis failed: ' + err.message);
         } finally {
@@ -1660,6 +1697,13 @@
             analyzeBtn.textContent = 'Analyze Resume';
         }
     });
+
+    function ordinal(n) {
+        const i = n + 1; // convert 0-based to 1-based
+        const s = ['th', 'st', 'nd', 'rd'];
+        const v = i % 100;
+        return i + (s[(v - 20) % 10] || s[v] || s[0]);
+    }
 
     function getLocationLabel(finding) {
         const t = finding.target || {};
@@ -1670,7 +1714,7 @@
         if (section === 'objective') return 'Objective';
 
         if (section === 'curatedSkills') {
-            return index != null ? `Curated Skills > [${index}]` : 'Curated Skills';
+            return index != null ? `Curated Skills > ${ordinal(index)} skill` : 'Curated Skills';
         }
 
         let itemLabel = itemKey || '';
@@ -1689,8 +1733,8 @@
             || finding.type === 'add_bullet' || finding.type === 'add_skill') {
             const itemPart = itemLabel ? `${sectionLabel}: ${itemLabel}` : sectionLabel;
             if (index != null) {
-                const kind = finding.type.includes('skill') ? 'Skill' : 'Bullet';
-                return `${itemPart} > ${kind} ${index}`;
+                const kind = finding.type.includes('skill') ? 'skill' : 'bullet point';
+                return `${itemPart} > ${ordinal(index)} ${kind}`;
             }
             return itemPart;
         }
@@ -1808,6 +1852,27 @@
         }
     }
 
+    function scrollToNextPending(currentCard) {
+        const allCards = Array.from(document.querySelectorAll('.analyzer-finding'));
+        const currentIdx = allCards.indexOf(currentCard);
+        if (currentIdx === -1) return;
+
+        // Look down first (after current card)
+        for (let i = currentIdx + 1; i < allCards.length; i++) {
+            if (allCards[i].dataset.status === 'pending') {
+                allCards[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+        }
+        // Then look up (before current card)
+        for (let i = currentIdx - 1; i >= 0; i--) {
+            if (allCards[i].dataset.status === 'pending') {
+                allCards[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+        }
+    }
+
     document.getElementById('build-main').addEventListener('click', (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
@@ -1824,11 +1889,13 @@
             card.dataset.status = finding.status;
             updateApplyButton();
             debouncedSave();
+            if (finding.status !== 'pending') scrollToNextPending(card);
         } else if (btn.classList.contains('finding-reject')) {
             finding.status = finding.status === 'rejected' ? 'pending' : 'rejected';
             card.dataset.status = finding.status;
             updateApplyButton();
             debouncedSave();
+            if (finding.status !== 'pending') scrollToNextPending(card);
         }
     });
 
@@ -2030,6 +2097,18 @@
     attachEditableHandlers(resultExperiencesSlot, 'experiences');
     attachEditableHandlers(resultProjectsSlot, 'projects');
     attachCuratedSkillsHandlers();
+
+    // Click-to-show tag actions (prevents layout shift from hover)
+    document.addEventListener('click', (e) => {
+        const tag = e.target.closest('.editable-tag');
+        if (tag && !e.target.closest('.tag-actions')) {
+            const wasActive = tag.classList.contains('active');
+            document.querySelectorAll('.editable-tag.active').forEach(t => t.classList.remove('active'));
+            if (!wasActive) tag.classList.add('active');
+        } else if (!tag) {
+            document.querySelectorAll('.editable-tag.active').forEach(t => t.classList.remove('active'));
+        }
+    });
 
     // --- Smart button states ---
 

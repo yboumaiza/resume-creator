@@ -20,28 +20,50 @@ async function api(route, method = 'GET', body = null) {
 }
 
 // Tab switching
+function switchToTab(tabName) {
+    const tab = document.querySelector(`.tab[data-tab="${tabName}"]`);
+    const content = document.getElementById(`tab-${tabName}`);
+    if (!tab || !content) return;
+
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    content.classList.add('active');
+
+    if (tabName === 'personal' && typeof loadPersonalInfo === 'function') {
+        loadPersonalInfo();
+    }
+    const container = document.querySelector('.container');
+    if (tabName === 'build') {
+        container.classList.add('build-active');
+    } else {
+        container.classList.remove('build-active');
+    }
+    if (tabName === 'build' && typeof loadSelectionCheckboxes === 'function') {
+        loadSelectionCheckboxes();
+    }
+
+    // Update URL hash without triggering hashchange
+    if (location.hash !== `#${tabName}`) {
+        history.replaceState(null, '', `#${tabName}`);
+    }
+}
+
 document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        tab.classList.add('active');
-        document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+    tab.addEventListener('click', () => switchToTab(tab.dataset.tab));
+});
 
-        if (tab.dataset.tab === 'personal' && typeof loadPersonalInfo === 'function') {
-            loadPersonalInfo();
-        }
-        // Toggle wider container for build tab
-        const container = document.querySelector('.container');
-        if (tab.dataset.tab === 'build') {
-            container.classList.add('build-active');
-        } else {
-            container.classList.remove('build-active');
-        }
+// Restore tab from URL hash on load (deferred until all scripts are ready)
+const validTabs = Array.from(document.querySelectorAll('.tab')).map(t => t.dataset.tab);
+document.addEventListener('DOMContentLoaded', () => {
+    const hashTab = location.hash.replace('#', '');
+    switchToTab(validTabs.includes(hashTab) ? hashTab : 'personal');
+});
 
-        if (tab.dataset.tab === 'build' && typeof loadSelectionCheckboxes === 'function') {
-            loadSelectionCheckboxes();
-        }
-    });
+// Handle browser back/forward
+window.addEventListener('hashchange', () => {
+    const tab = location.hash.replace('#', '');
+    if (validTabs.includes(tab)) switchToTab(tab);
 });
 
 // Modal helpers

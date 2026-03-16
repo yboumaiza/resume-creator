@@ -983,16 +983,21 @@ header h1 {
     color: #3730a3;
     border-radius: 99px;
     font-size: 0.8rem;
+    position: relative;
 }
 
 .tag-actions {
     display: none;
     gap: 1px;
-    margin-left: 4px;
-    transition: opacity 0.15s;
+    position: absolute;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    background: #e0e7ff;
+    border-radius: 99px;
 }
 
-.editable-tag:hover .tag-actions {
+.editable-tag.active .tag-actions {
     display: inline-flex;
 }
 
@@ -1139,6 +1144,21 @@ header h1 {
 .bullet-add {
     margin-top: 4px;
 }
+
+/* SortableJS drag-and-drop */
+.sortable-ghost { opacity: 0.4; }
+.sortable-drag { opacity: 0.9; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+.editable-bullet .bullet-text { cursor: grab; }
+.editable-bullet .bullet-text:active { cursor: grabbing; }
+.editable-tag { cursor: grab; }
+.editable-tag:active { cursor: grabbing; }
+
+/* Hide action buttons during drag */
+.editable-tag.sortable-chosen .tag-actions,
+.editable-tag.sortable-ghost .tag-actions { display: none !important; }
+.editable-bullet.sortable-chosen .bullet-actions,
+.editable-bullet.sortable-ghost .bullet-actions { display: none !important; }
 
 /* Editable objective */
 .editable-objective-card {

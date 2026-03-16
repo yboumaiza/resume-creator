@@ -23,7 +23,8 @@
       "Bash(node -c js/selection.js)",
       "Bash(find:*)",
       "Bash(ls:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(wc:*)"
     ]
   }
 }

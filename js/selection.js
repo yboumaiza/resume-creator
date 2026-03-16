@@ -37,6 +37,52 @@
         curatedSkills: [],
     };
 
+    // --- localStorage state cache ---
+
+    const CACHE_KEY = 'resumeBuilder_state';
+
+    function saveStateToCache() {
+        const state = {
+            jobDescription: document.getElementById('job-description').value,
+            selectedExpIds: Array.from(expCheckboxes.querySelectorAll('input:checked')).map(cb => parseInt(cb.value)),
+            selectedProjIds: Array.from(projCheckboxes.querySelectorAll('input:checked')).map(cb => parseInt(cb.value)),
+            provider: providerSelect.value,
+            editableResults: {
+                objective: editableResults.objective,
+                experiences: editableResults.experiences,
+                projects: editableResults.projects,
+                curatedSkills: editableResults.curatedSkills,
+            },
+            analyzerFindings,
+            cachedJobAnalysis,
+            cachedSelectedExpIds,
+        };
+        try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(state));
+        } catch (e) {
+            // Silently fail (quota exceeded, private browsing, etc.)
+        }
+    }
+
+    function loadStateFromCache() {
+        try {
+            const raw = localStorage.getItem(CACHE_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function clearStateCache() {
+        localStorage.removeItem(CACHE_KEY);
+    }
+
+    let _saveTimer = null;
+    function debouncedSave() {
+        clearTimeout(_saveTimer);
+        _saveTimer = setTimeout(saveStateToCache, 500);
+    }
+
     function resetEditableResults() {
         editableResults.objective = '';
         editableResults.experiences = [];
@@ -45,6 +91,7 @@
         cachedJobAnalysis = null;
         cachedSelectedExpIds = [];
         pipelineState = null;
+        clearStateCache();
         resultObjectiveSlot.innerHTML = '';
         resultObjectiveSlot.classList.add('hidden');
         resultExperiencesSlot.innerHTML = '';
@@ -99,6 +146,15 @@
             if (!hasSelected) {
                 providerSelect.innerHTML = '<option value="" disabled selected>No providers available</option>';
             }
+
+            // Restore cached provider selection
+            const cached = loadStateFromCache();
+            if (cached?.provider) {
+                const opt = providerSelect.querySelector(`option[value="${cached.provider}"]`);
+                if (opt && !opt.disabled) {
+                    providerSelect.value = cached.provider;
+                }
+            }
         } catch (err) {
             providerSelect.innerHTML = '<option value="" disabled selected>Failed to load</option>';
         }
@@ -149,11 +205,82 @@
                 : '<p class="empty-state">No projects added yet.</p>';
             updateButtonStates();
             updateStepper(deriveWorkflowStep());
+
+            // Restore cached state after checkboxes and providers are ready
+            restoreFromCache();
         } catch (err) {
             expCheckboxes.innerHTML = '<p class="empty-state">Failed to load.</p>';
             projCheckboxes.innerHTML = '<p class="empty-state">Failed to load.</p>';
         }
     };
+
+    function restoreFromCache() {
+        const cached = loadStateFromCache();
+        if (!cached) return;
+
+        // 1. Restore job description
+        if (cached.jobDescription) {
+            document.getElementById('job-description').value = cached.jobDescription;
+        }
+
+        // 2. Restore checkbox selections
+        if (cached.selectedExpIds?.length) {
+            const ids = new Set(cached.selectedExpIds.map(String));
+            expCheckboxes.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = ids.has(cb.value);
+            });
+        }
+        if (cached.selectedProjIds?.length) {
+            const ids = new Set(cached.selectedProjIds.map(String));
+            projCheckboxes.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = ids.has(cb.value);
+            });
+        }
+
+        // 3. Restore AI provider
+        if (cached.provider) {
+            const opt = providerSelect.querySelector(`option[value="${cached.provider}"]`);
+            if (opt && !opt.disabled) {
+                providerSelect.value = cached.provider;
+            }
+        }
+
+        // 4. Restore generated content
+        if (cached.editableResults) {
+            const er = cached.editableResults;
+            editableResults.objective = er.objective || '';
+            editableResults.experiences = er.experiences || [];
+            editableResults.projects = er.projects || [];
+            editableResults.curatedSkills = er.curatedSkills || [];
+        }
+
+        // 5. Restore analysis state
+        if (cached.analyzerFindings) analyzerFindings = cached.analyzerFindings;
+        if (cached.cachedJobAnalysis) cachedJobAnalysis = cached.cachedJobAnalysis;
+        if (cached.cachedSelectedExpIds) cachedSelectedExpIds = cached.cachedSelectedExpIds;
+
+        // 6. Re-render if there's content
+        const hasContent = editableResults.objective ||
+            editableResults.experiences.length > 0 ||
+            editableResults.projects.length > 0;
+
+        if (hasContent) {
+            if (previewEmpty) previewEmpty.classList.add('hidden');
+            renderEditableObjective();
+            if (editableResults.experiences.length) renderEditableSection('experiences');
+            if (editableResults.projects.length) renderEditableSection('projects');
+            if (editableResults.curatedSkills.length) renderEditableCuratedSkills();
+        }
+
+        // 7. If analyzer was active, restore analyzer UI state
+        if (analyzerFindings.length) {
+            document.getElementById('tab-build').classList.add('analyzer-active');
+            renderAnalyzerResults();
+        }
+
+        updateButtonStates();
+        updateStepper(deriveWorkflowStep());
+    }
 
     // --- Auto-Select ---
 
@@ -186,6 +313,7 @@
             });
             updateButtonStates();
             updateStepper(deriveWorkflowStep());
+            debouncedSave();
         } catch (err) {
             alert('Auto-select failed: ' + (err.message || err));
         } finally {
@@ -693,6 +821,7 @@
         slot.innerHTML = html;
         slot.classList.remove('hidden');
         injectItemFindings(section);
+        debouncedSave();
     }
 
     function renderEditableItemCard(entry, section, idx, isFirst, isLast) {
@@ -814,6 +943,8 @@
             }
         });
 
+        debouncedSave();
+
         resultObjectiveSlot.querySelector('.objective-edit').addEventListener('click', () => {
             openModal('Edit Objective', `
                 <div class="form-group">
@@ -871,6 +1002,7 @@
         `;
         resultCuratedSkillsSlot.classList.remove('hidden');
         injectCuratedSkillsFindings();
+        debouncedSave();
     }
 
     function attachCuratedSkillsHandlers() {
@@ -1197,6 +1329,7 @@
         temp.innerHTML = renderEditableItemCard(entry, section, itemIdx, itemIdx === 0, itemIdx === total - 1);
         oldCard.replaceWith(temp.firstElementChild);
         injectSingleItemFindings(section, itemIdx);
+        debouncedSave();
     }
 
     // Skills
@@ -1506,6 +1639,7 @@
             });
             analyzerFindings = [...perItemFindings, ...dedupedHolistic];
             renderAnalyzerResults();
+            debouncedSave();
         } catch (err) {
             alert('Analysis failed: ' + err.message);
         } finally {
@@ -1676,10 +1810,12 @@
             finding.status = finding.status === 'accepted' ? 'pending' : 'accepted';
             card.dataset.status = finding.status;
             updateApplyButton();
+            debouncedSave();
         } else if (btn.classList.contains('finding-reject')) {
             finding.status = finding.status === 'rejected' ? 'pending' : 'rejected';
             card.dataset.status = finding.status;
             updateApplyButton();
+            debouncedSave();
         }
     });
 
@@ -1688,7 +1824,10 @@
         const card = e.target.closest('.analyzer-finding');
         if (!card) return;
         const finding = analyzerFindings.find(f => f.id === card.dataset.findingId);
-        if (finding) finding._editedSuggestion = e.target.value;
+        if (finding) {
+            finding._editedSuggestion = e.target.value;
+            debouncedSave();
+        }
     });
 
     applyBar.addEventListener('click', (e) => {
@@ -1900,13 +2039,19 @@
     document.getElementById('job-description').addEventListener('input', () => {
         updateButtonStates();
         updateStepper(deriveWorkflowStep());
+        debouncedSave();
     });
 
     document.getElementById('build-main').addEventListener('change', (e) => {
         if (e.target.matches('input[type="checkbox"]')) {
             updateButtonStates();
             updateStepper(deriveWorkflowStep());
+            debouncedSave();
         }
+    });
+
+    providerSelect.addEventListener('change', () => {
+        debouncedSave();
     });
 
     // --- Workflow stepper ---
@@ -1933,6 +2078,22 @@
         if (!hasContent) return 3;
         return 4;
     }
+
+    // --- Reset button ---
+
+    const resetBuildBtn = document.getElementById('reset-build-btn');
+    resetBuildBtn.addEventListener('click', () => {
+        if (!confirm('Clear all generated content and selections?')) return;
+        resetEditableResults();
+        document.getElementById('job-description').value = '';
+        expCheckboxes.querySelectorAll('input:checked').forEach(cb => cb.checked = false);
+        projCheckboxes.querySelectorAll('input:checked').forEach(cb => cb.checked = false);
+        resultsContent.innerHTML = '';
+        resultsDiv.classList.add('hidden');
+        if (previewEmpty) previewEmpty.classList.remove('hidden');
+        updateButtonStates();
+        updateStepper(deriveWorkflowStep());
+    });
 
     // --- Mobile drawer toggle ---
 

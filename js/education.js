@@ -70,7 +70,7 @@
                 closeModal();
                 loadEducation();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message);
             }
         });
     });
@@ -83,18 +83,18 @@
                 closeModal();
                 loadEducation();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message);
             }
         });
     };
 
     window.deleteEducation = async function (id) {
-        if (!confirm('Delete this education entry?')) return;
+        if (!await showConfirm('Delete this education entry?')) return;
         try {
             await api('education', 'DELETE', { id });
             loadEducation();
         } catch (err) {
-            alert(err.message);
+            showToast(err.message);
         }
     };
 

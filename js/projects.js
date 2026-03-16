@@ -75,7 +75,7 @@
                 closeModal();
                 loadProjects();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message);
             }
         });
 
@@ -94,7 +94,7 @@
                 closeModal();
                 loadProjects();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message);
             }
         });
 
@@ -106,12 +106,12 @@
     };
 
     window.deleteProject = async function (id) {
-        if (!confirm('Delete this project?')) return;
+        if (!await showConfirm('Delete this project?')) return;
         try {
             await api('projects', 'DELETE', { id });
             loadProjects();
         } catch (err) {
-            alert(err.message);
+            showToast(err.message);
         }
     };
 

@@ -76,7 +76,7 @@
                 closeModal();
                 loadTestimonials();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message);
             }
         });
     });
@@ -89,18 +89,18 @@
                 closeModal();
                 loadTestimonials();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message);
             }
         });
     };
 
     window.deleteTestimonial = async function (id) {
-        if (!confirm('Delete this testimonial?')) return;
+        if (!await showConfirm('Delete this testimonial?')) return;
         try {
             await api('testimonials', 'DELETE', { id });
             loadTestimonials();
         } catch (err) {
-            alert(err.message);
+            showToast(err.message);
         }
     };
 

@@ -65,7 +65,7 @@
                 closeModal();
                 loadCertifications();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message);
             }
         });
     });
@@ -78,18 +78,18 @@
                 closeModal();
                 loadCertifications();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message);
             }
         });
     };
 
     window.deleteCertification = async function (id) {
-        if (!confirm('Delete this certification?')) return;
+        if (!await showConfirm('Delete this certification?')) return;
         try {
             await api('certifications', 'DELETE', { id });
             loadCertifications();
         } catch (err) {
-            alert(err.message);
+            showToast(err.message);
         }
     };
 

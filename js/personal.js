@@ -78,7 +78,7 @@
         };
 
         if (!data.full_name) {
-            alert('Full name is required.');
+            showToast('Full name is required.', 'warning');
             return;
         }
 

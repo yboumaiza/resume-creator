@@ -292,13 +292,13 @@
     autoSelectBtn.addEventListener('click', async () => {
         const jd = document.getElementById('job-description').value.trim();
         if (!jd) {
-            alert('Please paste a job description first.');
+            showToast('Please paste a job description first.', 'warning');
             return;
         }
 
         const hasItems = experiences.length > 0 || projects.length > 0;
         if (!hasItems) {
-            alert('No experiences or projects to select from. Add some first.');
+            showToast('No experiences or projects to select from. Add some first.', 'warning');
             return;
         }
 
@@ -320,7 +320,7 @@
             updateStepper();
             debouncedSave();
         } catch (err) {
-            alert('Auto-select failed: ' + (err.message || err));
+            showToast('Auto-select failed: ' + (err.message || err));
         } finally {
             autoSelectBtn.disabled = false;
             autoSelectBtn.textContent = 'Auto-Select';
@@ -426,7 +426,7 @@
     generateBtn.addEventListener('click', async () => {
         const jobDescription = document.getElementById('job-description').value.trim();
         if (!jobDescription) {
-            alert('Please paste a job description.');
+            showToast('Please paste a job description.', 'warning');
             return;
         }
 
@@ -434,7 +434,7 @@
         const selectedProjIds = Array.from(projCheckboxes.querySelectorAll('input:checked')).map(cb => parseInt(cb.value));
 
         if (!selectedExpIds.length && !selectedProjIds.length) {
-            alert('Select at least one experience or project.');
+            showToast('Select at least one experience or project.', 'warning');
             return;
         }
 
@@ -477,7 +477,7 @@
         );
 
         if (inputsChanged) {
-            if (!confirm('Inputs have changed since generation started. Resuming may produce inconsistent results.\n\nClick OK to resume anyway, or Cancel to start fresh with Generate.')) {
+            if (!await showConfirm('Inputs have changed since generation started. Resuming may produce inconsistent results.\n\nClick OK to resume anyway, or Cancel to start fresh with Generate.', { okLabel: 'Resume' })) {
                 return;
             }
         }
@@ -919,7 +919,7 @@
 
         resultObjectiveSlot.querySelector('.objective-regenerate').addEventListener('click', async (e) => {
             if (!cachedJobAnalysis) {
-                alert('No job analysis cached. Please run the full generation first.');
+                showToast('No job analysis cached. Please run the full generation first.', 'warning');
                 return;
             }
             const btn = e.currentTarget;
@@ -941,7 +941,7 @@
                 generatedObjective = editableResults.objective;
                 renderEditableObjective();
             } catch (err) {
-                alert('Objective regeneration failed: ' + err.message);
+                showToast('Objective regeneration failed: ' + err.message);
                 btn.disabled = false;
                 btn.textContent = '\u21BB Regenerate';
             }
@@ -1088,7 +1088,7 @@
 
             if (btn.classList.contains('curated-regenerate')) {
                 if (!cachedJobAnalysis) {
-                    alert('No job analysis cached. Please run the full generation first.');
+                    showToast('No job analysis cached. Please run the full generation first.', 'warning');
                     return;
                 }
                 btn.disabled = true;
@@ -1111,7 +1111,7 @@
                     editableResults.curatedSkills = result.curated_skills || [];
                     renderEditableCuratedSkills();
                 }).catch(err => {
-                    alert('Skills curation failed: ' + err.message);
+                    showToast('Skills curation failed: ' + err.message);
                     btn.disabled = false;
                     btn.textContent = '\u21BB Regenerate';
                 });
@@ -1200,7 +1200,7 @@
 
     async function regenerateItem(section, itemIdx, btn) {
         if (!cachedJobAnalysis) {
-            alert('No job analysis cached. Please run the full generation first.');
+            showToast('No job analysis cached. Please run the full generation first.', 'warning');
             return;
         }
 
@@ -1263,7 +1263,7 @@
 
             rerenderItem(section, itemIdx);
         } catch (err) {
-            alert('Regeneration failed: ' + err.message);
+            showToast('Regeneration failed: ' + err.message);
             btn.disabled = false;
             btn.textContent = '\u21BB Regenerate';
         }
@@ -1605,7 +1605,7 @@
 
     analyzeBtn.addEventListener('click', async () => {
         if (!cachedJobAnalysis) {
-            alert('No job analysis cached. Please run the full generation first.');
+            showToast('No job analysis cached. Please run the full generation first.', 'warning');
             return;
         }
 
@@ -1690,7 +1690,7 @@
                 if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 300);
         } catch (err) {
-            alert('Analysis failed: ' + err.message);
+            showToast('Analysis failed: ' + err.message);
         } finally {
             setWizardLocked(false);
             analyzeBtn.disabled = false;
@@ -2086,7 +2086,7 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         } catch (err) {
-            alert('PDF download failed: ' + err.message);
+            showToast('PDF download failed: ' + err.message);
         } finally {
             downloadPdfBtn.disabled = false;
             downloadPdfBtn.textContent = 'Download PDF';
@@ -2164,7 +2164,7 @@
         document.getElementById('tab-build').setAttribute('data-wizard-step', step);
         // Show pipeline placeholder on step 3 when pipeline log is empty
         const pipelineEmpty = document.getElementById('pipeline-empty');
-        if (step === 3 && !resultsContent.children.length) {
+        if (step === 3 && !resultsContent.children.length && !generateBtn.disabled) {
             pipelineEmpty.classList.remove('hidden');
         } else {
             pipelineEmpty.classList.add('hidden');
@@ -2218,8 +2218,8 @@
     // --- Reset button ---
 
     const resetBuildBtn = document.getElementById('reset-build-btn');
-    resetBuildBtn.addEventListener('click', () => {
-        if (!confirm('Clear all generated content and selections?')) return;
+    resetBuildBtn.addEventListener('click', async () => {
+        if (!await showConfirm('Clear all generated content and selections?')) return;
         resetEditableResults();
         document.getElementById('job-description').value = '';
         expCheckboxes.querySelectorAll('input:checked').forEach(cb => cb.checked = false);

@@ -96,7 +96,7 @@
                 closeModal();
                 loadExperiences();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message);
             }
         });
 
@@ -116,7 +116,7 @@
                 closeModal();
                 loadExperiences();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message);
             }
         });
 
@@ -128,12 +128,12 @@
     };
 
     window.deleteExperience = async function (id) {
-        if (!confirm('Delete this experience?')) return;
+        if (!await showConfirm('Delete this experience?')) return;
         try {
             await api('experiences', 'DELETE', { id });
             loadExperiences();
         } catch (err) {
-            alert(err.message);
+            showToast(err.message);
         }
     };
 

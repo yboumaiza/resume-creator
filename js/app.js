@@ -141,3 +141,62 @@ function escapeHtml(str) {
     div.textContent = str;
     return div.innerHTML;
 }
+
+// Toast notifications
+window.showToast = function (message, type = 'error') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+
+    const dismiss = () => {
+        if (toast.classList.contains('toast-exit')) return;
+        toast.classList.add('toast-exit');
+        toast.addEventListener('animationend', () => toast.remove());
+    };
+
+    toast.addEventListener('click', dismiss);
+    container.appendChild(toast);
+
+    const delay = type === 'error' ? 6000 : 4000;
+    setTimeout(dismiss, delay);
+};
+
+// Confirm dialog (returns Promise<boolean>)
+window.showConfirm = function (message, options = {}) {
+    const overlay = document.getElementById('confirm-overlay');
+    const msgEl = document.getElementById('confirm-message');
+    const okBtn = document.getElementById('confirm-ok');
+    const cancelBtn = document.getElementById('confirm-cancel');
+
+    msgEl.textContent = message;
+    okBtn.textContent = options.okLabel || 'OK';
+    cancelBtn.textContent = options.cancelLabel || 'Cancel';
+
+    if (options.danger === false) {
+        okBtn.classList.remove('btn-danger');
+        okBtn.classList.add('btn-primary');
+    } else {
+        okBtn.classList.remove('btn-primary');
+        okBtn.classList.add('btn-danger');
+    }
+
+    overlay.classList.remove('hidden');
+
+    return new Promise((resolve) => {
+        function cleanup(result) {
+            overlay.classList.add('hidden');
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            overlay.removeEventListener('click', onOverlay);
+            resolve(result);
+        }
+        function onOk() { cleanup(true); }
+        function onCancel() { cleanup(false); }
+        function onOverlay(e) { if (e.target === overlay) cleanup(false); }
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        overlay.addEventListener('click', onOverlay);
+    });
+};
